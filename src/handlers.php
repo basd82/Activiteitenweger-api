@@ -515,6 +515,15 @@ function aw_handle_delete_vault(array $auth, string $rawBody, string $vaultIdFro
             aw_json_response(404, ['error' => 'not_found']);
         }
 
+        // Devices are global from schema 2 onward. Remove only identities that
+        // no longer have any vault grant; devices used by another vault remain.
+        $db->query(
+            'DELETE d
+               FROM devices d
+               LEFT JOIN vault_devices vd ON vd.device_id = d.device_id
+              WHERE vd.device_id IS NULL'
+        );
+
         $db->commit();
         aw_json_response(200, ['status' => 'deleted']);
     } catch (Throwable $e) {
