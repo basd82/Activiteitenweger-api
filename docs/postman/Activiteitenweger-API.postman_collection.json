@@ -1,0 +1,865 @@
+{
+  "info": {
+    "name": "Activiteitenweger API v1 - Server 1.1.0",
+    "description": "Stateful server smoke/integration test. Run de requests in collection order. De suite maakt een tijdelijke vault aan, test signed requests, revisions, cursor-sync, revision_conflict en tombstones, en verwijdert de vault aan het einde.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://app.dikkenberg.net",
+      "type": "string"
+    },
+    {
+      "key": "serverVersion",
+      "value": "1.1.0",
+      "type": "string"
+    },
+    {
+      "key": "apiVersion",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "vaultId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "deviceId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "authPublicKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "authSecretKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "encryptionPublicKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "keyEnvelope",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "recordId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "cursor",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "cursorAfterCreate",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "recordCiphertext",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "recordNonce",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "recordSignature",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test('Server version header klopt', function () {",
+          "    pm.expect(pm.response.headers.get('X-AW-Server-Version')).to.eql(pm.collectionVariables.get('serverVersion'));",
+          "});"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "health"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "const json = pm.response.json();",
+              "pm.test('Database is bereikbaar', () => pm.expect(json.database).to.eql('ok'));",
+              "pm.test('API-versie is v1', () => pm.expect(json.apiVersion).to.eql(Number(pm.collectionVariables.get('apiVersion'))));",
+              "pm.test('Serverversie klopt', () => pm.expect(json.serverVersion).to.eql(pm.collectionVariables.get('serverVersion')));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Create test vault",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const nacl = pm.require('npm:tweetnacl@1.0.3');",
+              "const { Buffer } = require('buffer');",
+              "const b64u = bytes => Buffer.from(bytes).toString('base64').replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');",
+              "const vaultId = pm.variables.replaceIn('{{$guid}}');",
+              "const deviceId = pm.variables.replaceIn('{{$guid}}');",
+              "const signing = nacl.sign.keyPair();",
+              "pm.collectionVariables.set('vaultId', vaultId);",
+              "pm.collectionVariables.set('deviceId', deviceId);",
+              "pm.collectionVariables.set('authPublicKey', b64u(signing.publicKey));",
+              "pm.collectionVariables.set('authSecretKey', b64u(signing.secretKey));",
+              "pm.collectionVariables.set('encryptionPublicKey', b64u(nacl.randomBytes(32)));",
+              "pm.collectionVariables.set('keyEnvelope', b64u(nacl.randomBytes(48)));",
+              "pm.collectionVariables.set('cursor', '0');",
+              "pm.collectionVariables.set('cursorAfterCreate', '0');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "const json = pm.response.json();",
+              "pm.test('Vault-id klopt', () => pm.expect(json.vaultId).to.eql(pm.collectionVariables.get('vaultId')));",
+              "pm.test('Device-id klopt', () => pm.expect(json.deviceId).to.eql(pm.collectionVariables.get('deviceId')));",
+              "pm.test('Owner heeft RW', () => { pm.expect(json.access).to.eql('RW'); pm.expect(json.owner).to.eql(true); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"vaultId\": \"{{vaultId}}\",\n  \"deviceId\": \"{{deviceId}}\",\n  \"authPublicKey\": \"{{authPublicKey}}\",\n  \"encryptionPublicKey\": \"{{encryptionPublicKey}}\",\n  \"keyEpoch\": 1,\n  \"keyEnvelope\": \"{{keyEnvelope}}\",\n  \"keyEnvelopeNonce\": null\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/vaults",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "vaults"
+          ]
+        }
+      }
+    },
+    {
+      "name": "03 - Me",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const nacl = pm.require('npm:tweetnacl@1.0.3');",
+              "const { Buffer } = require('buffer');",
+              "const b64u = bytes => Buffer.from(bytes).toString('base64').replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');",
+              "const fromB64u = value => Buffer.from(value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - value.length % 4) % 4), 'base64');",
+              "const timestamp = Math.floor(Date.now() / 1000).toString();",
+              "const nonce = b64u(nacl.randomBytes(16));",
+              "const path = pm.variables.replaceIn(pm.request.url.getPathWithQuery());",
+              "const rawBody = pm.request.body && pm.request.body.mode === 'raw' ? pm.variables.replaceIn(pm.request.body.raw || '') : '';",
+              "const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawBody)));",
+              "const bodyHash = Buffer.from(digest).toString('hex');",
+              "const canonical = ['AW-REQUEST-V1', pm.request.method.toUpperCase(), path, timestamp, nonce, bodyHash].join('\\n');",
+              "const signature = nacl.sign.detached(new TextEncoder().encode(canonical), new Uint8Array(fromB64u(pm.collectionVariables.get('authSecretKey'))));",
+              "pm.request.headers.upsert({ key: 'X-AW-Device-Id', value: pm.collectionVariables.get('deviceId') });",
+              "pm.request.headers.upsert({ key: 'X-AW-Timestamp', value: timestamp });",
+              "pm.request.headers.upsert({ key: 'X-AW-Nonce', value: nonce });",
+              "pm.request.headers.upsert({ key: 'X-AW-Signature', value: b64u(signature) });",
+              "pm.request.headers.upsert({ key: 'Accept', value: 'application/json' });"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "const json = pm.response.json();",
+              "pm.test('Vault/device context klopt', () => { pm.expect(json.vaultId).to.eql(pm.collectionVariables.get('vaultId')); pm.expect(json.deviceId).to.eql(pm.collectionVariables.get('deviceId')); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "me"
+          ]
+        }
+      }
+    },
+    {
+      "name": "04 - Devices",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const nacl = pm.require('npm:tweetnacl@1.0.3');",
+              "const { Buffer } = require('buffer');",
+              "const b64u = bytes => Buffer.from(bytes).toString('base64').replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');",
+              "const fromB64u = value => Buffer.from(value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - value.length % 4) % 4), 'base64');",
+              "const timestamp = Math.floor(Date.now() / 1000).toString();",
+              "const nonce = b64u(nacl.randomBytes(16));",
+              "const path = pm.variables.replaceIn(pm.request.url.getPathWithQuery());",
+              "const rawBody = pm.request.body && pm.request.body.mode === 'raw' ? pm.variables.replaceIn(pm.request.body.raw || '') : '';",
+              "const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawBody)));",
+              "const bodyHash = Buffer.from(digest).toString('hex');",
+              "const canonical = ['AW-REQUEST-V1', pm.request.method.toUpperCase(), path, timestamp, nonce, bodyHash].join('\\n');",
+              "const signature = nacl.sign.detached(new TextEncoder().encode(canonical), new Uint8Array(fromB64u(pm.collectionVariables.get('authSecretKey'))));",
+              "pm.request.headers.upsert({ key: 'X-AW-Device-Id', value: pm.collectionVariables.get('deviceId') });",
+              "pm.request.headers.upsert({ key: 'X-AW-Timestamp', value: timestamp });",
+              "pm.request.headers.upsert({ key: 'X-AW-Nonce', value: nonce });",
+              "pm.request.headers.upsert({ key: 'X-AW-Signature', value: b64u(signature) });",
+              "pm.request.headers.upsert({ key: 'Accept', value: 'application/json' });"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "const json = pm.response.json();",
+              "pm.test('Owner-device is aanwezig', () => pm.expect(json.devices.some(d => d.deviceId === pm.collectionVariables.get('deviceId') && d.owner === true && d.access === 'RW')).to.eql(true));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/devices",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "devices"
+          ]
+        }
+      }
+    },
+    {
+      "name": "05 - Create record revision 1",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const nacl = pm.require('npm:tweetnacl@1.0.3');",
+              "const { Buffer } = require('buffer');",
+              "const b64u = bytes => Buffer.from(bytes).toString('base64').replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');",
+              "const fromB64u = value => Buffer.from(value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - value.length % 4) % 4), 'base64');",
+              "pm.collectionVariables.set('recordId', pm.variables.replaceIn('{{$guid}}'));",
+              "const revision = 1;",
+              "const deleted = false;",
+              "const nonceBytes = nacl.randomBytes(24);",
+              "const ciphertextBytes = nacl.randomBytes(64);",
+              "const nonce = b64u(nonceBytes);",
+              "const ciphertext = b64u(ciphertextBytes);",
+              "pm.collectionVariables.set('recordNonce', nonce);",
+              "pm.collectionVariables.set('recordCiphertext', ciphertext);",
+              "const cipherHashBytes = new Uint8Array(await crypto.subtle.digest('SHA-256', ciphertextBytes));",
+              "const cipherHash = Buffer.from(cipherHashBytes).toString('hex');",
+              "const recordCanonical = ['AW-RECORD-V1', pm.collectionVariables.get('vaultId'), pm.collectionVariables.get('recordId'), revision.toString(), '1', deleted ? '1' : '0', deleted ? '' : pm.collectionVariables.get('recordNonce'), cipherHash].join('\\n');",
+              "const recordSignature = nacl.sign.detached(new TextEncoder().encode(recordCanonical), new Uint8Array(fromB64u(pm.collectionVariables.get('authSecretKey'))));",
+              "pm.collectionVariables.set('recordSignature', b64u(recordSignature));",
+              "const timestamp = Math.floor(Date.now() / 1000).toString();",
+              "const nonce = b64u(nacl.randomBytes(16));",
+              "const path = pm.variables.replaceIn(pm.request.url.getPathWithQuery());",
+              "const rawBody = pm.request.body && pm.request.body.mode === 'raw' ? pm.variables.replaceIn(pm.request.body.raw || '') : '';",
+              "const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawBody)));",
+              "const bodyHash = Buffer.from(digest).toString('hex');",
+              "const canonical = ['AW-REQUEST-V1', pm.request.method.toUpperCase(), path, timestamp, nonce, bodyHash].join('\\n');",
+              "const signature = nacl.sign.detached(new TextEncoder().encode(canonical), new Uint8Array(fromB64u(pm.collectionVariables.get('authSecretKey'))));",
+              "pm.request.headers.upsert({ key: 'X-AW-Device-Id', value: pm.collectionVariables.get('deviceId') });",
+              "pm.request.headers.upsert({ key: 'X-AW-Timestamp', value: timestamp });",
+              "pm.request.headers.upsert({ key: 'X-AW-Nonce', value: nonce });",
+              "pm.request.headers.upsert({ key: 'X-AW-Signature', value: b64u(signature) });",
+              "pm.request.headers.upsert({ key: 'Accept', value: 'application/json' });"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "const json = pm.response.json();",
+              "pm.test('Revision 1 opgeslagen', () => { pm.expect(json.revision).to.eql(1); pm.expect(json.deleted).to.eql(false); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"recordId\": \"{{recordId}}\",\n  \"revision\": 1,\n  \"keyEpoch\": 1,\n  \"deleted\": false,\n  \"ciphertext\": \"{{recordCiphertext}}\",\n  \"nonce\": \"{{recordNonce}}\",\n  \"recordSignature\": \"{{recordSignature}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/records",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "records"
+          ]
+        }
+      }
+    },
+    {
+      "name": "06 - Sync from cursor 0",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const nacl = pm.require('npm:tweetnacl@1.0.3');",
+              "const { Buffer } = require('buffer');",
+              "const b64u = bytes => Buffer.from(bytes).toString('base64').replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');",
+              "const fromB64u = value => Buffer.from(value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - value.length % 4) % 4), 'base64');",
+              "const timestamp = Math.floor(Date.now() / 1000).toString();",
+              "const nonce = b64u(nacl.randomBytes(16));",
+              "const path = pm.variables.replaceIn(pm.request.url.getPathWithQuery());",
+              "const rawBody = pm.request.body && pm.request.body.mode === 'raw' ? pm.variables.replaceIn(pm.request.body.raw || '') : '';",
+              "const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawBody)));",
+              "const bodyHash = Buffer.from(digest).toString('hex');",
+              "const canonical = ['AW-REQUEST-V1', pm.request.method.toUpperCase(), path, timestamp, nonce, bodyHash].join('\\n');",
+              "const signature = nacl.sign.detached(new TextEncoder().encode(canonical), new Uint8Array(fromB64u(pm.collectionVariables.get('authSecretKey'))));",
+              "pm.request.headers.upsert({ key: 'X-AW-Device-Id', value: pm.collectionVariables.get('deviceId') });",
+              "pm.request.headers.upsert({ key: 'X-AW-Timestamp', value: timestamp });",
+              "pm.request.headers.upsert({ key: 'X-AW-Nonce', value: nonce });",
+              "pm.request.headers.upsert({ key: 'X-AW-Signature', value: b64u(signature) });",
+              "pm.request.headers.upsert({ key: 'Accept', value: 'application/json' });"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "const json = pm.response.json();",
+              "pm.test('Revision 1 komt via sync terug', () => pm.expect(json.records.some(r => r.recordId === pm.collectionVariables.get('recordId') && r.revision === 1 && r.deleted === false)).to.eql(true));",
+              "pm.test('Cursor loopt vooruit', () => pm.expect(json.nextCursor).to.be.above(Number(pm.collectionVariables.get('cursor'))));",
+              "pm.collectionVariables.set('cursor', String(json.nextCursor));",
+              "pm.collectionVariables.set('cursorAfterCreate', String(json.nextCursor));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/sync?since={{cursor}}&limit=100",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "sync"
+          ]
+        }
+      }
+    },
+    {
+      "name": "07 - Update record revision 2",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const nacl = pm.require('npm:tweetnacl@1.0.3');",
+              "const { Buffer } = require('buffer');",
+              "const b64u = bytes => Buffer.from(bytes).toString('base64').replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');",
+              "const fromB64u = value => Buffer.from(value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - value.length % 4) % 4), 'base64');",
+              "const revision = 2;",
+              "const deleted = false;",
+              "const nonceBytes = nacl.randomBytes(24);",
+              "const ciphertextBytes = nacl.randomBytes(64);",
+              "const nonce = b64u(nonceBytes);",
+              "const ciphertext = b64u(ciphertextBytes);",
+              "pm.collectionVariables.set('recordNonce', nonce);",
+              "pm.collectionVariables.set('recordCiphertext', ciphertext);",
+              "const cipherHashBytes = new Uint8Array(await crypto.subtle.digest('SHA-256', ciphertextBytes));",
+              "const cipherHash = Buffer.from(cipherHashBytes).toString('hex');",
+              "const recordCanonical = ['AW-RECORD-V1', pm.collectionVariables.get('vaultId'), pm.collectionVariables.get('recordId'), revision.toString(), '1', deleted ? '1' : '0', deleted ? '' : pm.collectionVariables.get('recordNonce'), cipherHash].join('\\n');",
+              "const recordSignature = nacl.sign.detached(new TextEncoder().encode(recordCanonical), new Uint8Array(fromB64u(pm.collectionVariables.get('authSecretKey'))));",
+              "pm.collectionVariables.set('recordSignature', b64u(recordSignature));",
+              "const timestamp = Math.floor(Date.now() / 1000).toString();",
+              "const nonce = b64u(nacl.randomBytes(16));",
+              "const path = pm.variables.replaceIn(pm.request.url.getPathWithQuery());",
+              "const rawBody = pm.request.body && pm.request.body.mode === 'raw' ? pm.variables.replaceIn(pm.request.body.raw || '') : '';",
+              "const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawBody)));",
+              "const bodyHash = Buffer.from(digest).toString('hex');",
+              "const canonical = ['AW-REQUEST-V1', pm.request.method.toUpperCase(), path, timestamp, nonce, bodyHash].join('\\n');",
+              "const signature = nacl.sign.detached(new TextEncoder().encode(canonical), new Uint8Array(fromB64u(pm.collectionVariables.get('authSecretKey'))));",
+              "pm.request.headers.upsert({ key: 'X-AW-Device-Id', value: pm.collectionVariables.get('deviceId') });",
+              "pm.request.headers.upsert({ key: 'X-AW-Timestamp', value: timestamp });",
+              "pm.request.headers.upsert({ key: 'X-AW-Nonce', value: nonce });",
+              "pm.request.headers.upsert({ key: 'X-AW-Signature', value: b64u(signature) });",
+              "pm.request.headers.upsert({ key: 'Accept', value: 'application/json' });"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "const json = pm.response.json();",
+              "pm.test('Revision 2 opgeslagen', () => pm.expect(json.revision).to.eql(2));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"recordId\": \"{{recordId}}\",\n  \"revision\": 2,\n  \"keyEpoch\": 1,\n  \"deleted\": false,\n  \"ciphertext\": \"{{recordCiphertext}}\",\n  \"nonce\": \"{{recordNonce}}\",\n  \"recordSignature\": \"{{recordSignature}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/records",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "records"
+          ]
+        }
+      }
+    },
+    {
+      "name": "08 - Stale revision 2 must conflict",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const nacl = pm.require('npm:tweetnacl@1.0.3');",
+              "const { Buffer } = require('buffer');",
+              "const b64u = bytes => Buffer.from(bytes).toString('base64').replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');",
+              "const fromB64u = value => Buffer.from(value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - value.length % 4) % 4), 'base64');",
+              "const revision = 2;",
+              "const deleted = false;",
+              "const nonceBytes = nacl.randomBytes(24);",
+              "const ciphertextBytes = nacl.randomBytes(64);",
+              "const nonce = b64u(nonceBytes);",
+              "const ciphertext = b64u(ciphertextBytes);",
+              "pm.collectionVariables.set('recordNonce', nonce);",
+              "pm.collectionVariables.set('recordCiphertext', ciphertext);",
+              "const cipherHashBytes = new Uint8Array(await crypto.subtle.digest('SHA-256', ciphertextBytes));",
+              "const cipherHash = Buffer.from(cipherHashBytes).toString('hex');",
+              "const recordCanonical = ['AW-RECORD-V1', pm.collectionVariables.get('vaultId'), pm.collectionVariables.get('recordId'), revision.toString(), '1', deleted ? '1' : '0', deleted ? '' : pm.collectionVariables.get('recordNonce'), cipherHash].join('\\n');",
+              "const recordSignature = nacl.sign.detached(new TextEncoder().encode(recordCanonical), new Uint8Array(fromB64u(pm.collectionVariables.get('authSecretKey'))));",
+              "pm.collectionVariables.set('recordSignature', b64u(recordSignature));",
+              "const timestamp = Math.floor(Date.now() / 1000).toString();",
+              "const nonce = b64u(nacl.randomBytes(16));",
+              "const path = pm.variables.replaceIn(pm.request.url.getPathWithQuery());",
+              "const rawBody = pm.request.body && pm.request.body.mode === 'raw' ? pm.variables.replaceIn(pm.request.body.raw || '') : '';",
+              "const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawBody)));",
+              "const bodyHash = Buffer.from(digest).toString('hex');",
+              "const canonical = ['AW-REQUEST-V1', pm.request.method.toUpperCase(), path, timestamp, nonce, bodyHash].join('\\n');",
+              "const signature = nacl.sign.detached(new TextEncoder().encode(canonical), new Uint8Array(fromB64u(pm.collectionVariables.get('authSecretKey'))));",
+              "pm.request.headers.upsert({ key: 'X-AW-Device-Id', value: pm.collectionVariables.get('deviceId') });",
+              "pm.request.headers.upsert({ key: 'X-AW-Timestamp', value: timestamp });",
+              "pm.request.headers.upsert({ key: 'X-AW-Nonce', value: nonce });",
+              "pm.request.headers.upsert({ key: 'X-AW-Signature', value: b64u(signature) });",
+              "pm.request.headers.upsert({ key: 'Accept', value: 'application/json' });"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+              "const json = pm.response.json();",
+              "pm.test('Conflictcode klopt', () => pm.expect(json.error).to.eql('revision_conflict'));",
+              "pm.test('Conflictmetadata klopt', () => {",
+              "  pm.expect(json.recordId).to.eql(pm.collectionVariables.get('recordId'));",
+              "  pm.expect(json.currentRevision).to.eql(2);",
+              "  pm.expect(json.expectedRevision).to.eql(3);",
+              "  pm.expect(json.currentDeleted).to.eql(false);",
+              "  pm.expect(json.currentUpdatedAt).to.be.a('string').and.not.empty;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"recordId\": \"{{recordId}}\",\n  \"revision\": 2,\n  \"keyEpoch\": 1,\n  \"deleted\": false,\n  \"ciphertext\": \"{{recordCiphertext}}\",\n  \"nonce\": \"{{recordNonce}}\",\n  \"recordSignature\": \"{{recordSignature}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/records",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "records"
+          ]
+        }
+      }
+    },
+    {
+      "name": "09 - Incremental sync returns revision 2",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const nacl = pm.require('npm:tweetnacl@1.0.3');",
+              "const { Buffer } = require('buffer');",
+              "const b64u = bytes => Buffer.from(bytes).toString('base64').replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');",
+              "const fromB64u = value => Buffer.from(value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - value.length % 4) % 4), 'base64');",
+              "const timestamp = Math.floor(Date.now() / 1000).toString();",
+              "const nonce = b64u(nacl.randomBytes(16));",
+              "const path = pm.variables.replaceIn(pm.request.url.getPathWithQuery());",
+              "const rawBody = pm.request.body && pm.request.body.mode === 'raw' ? pm.variables.replaceIn(pm.request.body.raw || '') : '';",
+              "const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawBody)));",
+              "const bodyHash = Buffer.from(digest).toString('hex');",
+              "const canonical = ['AW-REQUEST-V1', pm.request.method.toUpperCase(), path, timestamp, nonce, bodyHash].join('\\n');",
+              "const signature = nacl.sign.detached(new TextEncoder().encode(canonical), new Uint8Array(fromB64u(pm.collectionVariables.get('authSecretKey'))));",
+              "pm.request.headers.upsert({ key: 'X-AW-Device-Id', value: pm.collectionVariables.get('deviceId') });",
+              "pm.request.headers.upsert({ key: 'X-AW-Timestamp', value: timestamp });",
+              "pm.request.headers.upsert({ key: 'X-AW-Nonce', value: nonce });",
+              "pm.request.headers.upsert({ key: 'X-AW-Signature', value: b64u(signature) });",
+              "pm.request.headers.upsert({ key: 'Accept', value: 'application/json' });"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "const json = pm.response.json();",
+              "pm.test('Alleen actuele recordstaat revision 2', () => pm.expect(json.records.some(r => r.recordId === pm.collectionVariables.get('recordId') && r.revision === 2 && r.deleted === false)).to.eql(true));",
+              "pm.test('Cursor loopt verder', () => pm.expect(json.nextCursor).to.be.above(Number(pm.collectionVariables.get('cursorAfterCreate'))));",
+              "pm.collectionVariables.set('cursor', String(json.nextCursor));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/sync?since={{cursorAfterCreate}}&limit=100",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "sync"
+          ]
+        }
+      }
+    },
+    {
+      "name": "10 - Delete record revision 3",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const nacl = pm.require('npm:tweetnacl@1.0.3');",
+              "const { Buffer } = require('buffer');",
+              "const b64u = bytes => Buffer.from(bytes).toString('base64').replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');",
+              "const fromB64u = value => Buffer.from(value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - value.length % 4) % 4), 'base64');",
+              "const revision = 3;",
+              "const deleted = true;",
+              "pm.collectionVariables.set('recordNonce', '');",
+              "pm.collectionVariables.set('recordCiphertext', '');",
+              "const cipherHashBytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new Uint8Array(0)));",
+              "const cipherHash = Buffer.from(cipherHashBytes).toString('hex');",
+              "const recordCanonical = ['AW-RECORD-V1', pm.collectionVariables.get('vaultId'), pm.collectionVariables.get('recordId'), revision.toString(), '1', deleted ? '1' : '0', deleted ? '' : pm.collectionVariables.get('recordNonce'), cipherHash].join('\\n');",
+              "const recordSignature = nacl.sign.detached(new TextEncoder().encode(recordCanonical), new Uint8Array(fromB64u(pm.collectionVariables.get('authSecretKey'))));",
+              "pm.collectionVariables.set('recordSignature', b64u(recordSignature));",
+              "const timestamp = Math.floor(Date.now() / 1000).toString();",
+              "const nonce = b64u(nacl.randomBytes(16));",
+              "const path = pm.variables.replaceIn(pm.request.url.getPathWithQuery());",
+              "const rawBody = pm.request.body && pm.request.body.mode === 'raw' ? pm.variables.replaceIn(pm.request.body.raw || '') : '';",
+              "const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawBody)));",
+              "const bodyHash = Buffer.from(digest).toString('hex');",
+              "const canonical = ['AW-REQUEST-V1', pm.request.method.toUpperCase(), path, timestamp, nonce, bodyHash].join('\\n');",
+              "const signature = nacl.sign.detached(new TextEncoder().encode(canonical), new Uint8Array(fromB64u(pm.collectionVariables.get('authSecretKey'))));",
+              "pm.request.headers.upsert({ key: 'X-AW-Device-Id', value: pm.collectionVariables.get('deviceId') });",
+              "pm.request.headers.upsert({ key: 'X-AW-Timestamp', value: timestamp });",
+              "pm.request.headers.upsert({ key: 'X-AW-Nonce', value: nonce });",
+              "pm.request.headers.upsert({ key: 'X-AW-Signature', value: b64u(signature) });",
+              "pm.request.headers.upsert({ key: 'Accept', value: 'application/json' });"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "const json = pm.response.json();",
+              "pm.test('Tombstone revision 3 opgeslagen', () => { pm.expect(json.revision).to.eql(3); pm.expect(json.deleted).to.eql(true); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"recordId\": \"{{recordId}}\",\n  \"revision\": 3,\n  \"keyEpoch\": 1,\n  \"deleted\": true,\n  \"recordSignature\": \"{{recordSignature}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/records",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "records"
+          ]
+        }
+      }
+    },
+    {
+      "name": "11 - Sync tombstone",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const nacl = pm.require('npm:tweetnacl@1.0.3');",
+              "const { Buffer } = require('buffer');",
+              "const b64u = bytes => Buffer.from(bytes).toString('base64').replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');",
+              "const fromB64u = value => Buffer.from(value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - value.length % 4) % 4), 'base64');",
+              "const timestamp = Math.floor(Date.now() / 1000).toString();",
+              "const nonce = b64u(nacl.randomBytes(16));",
+              "const path = pm.variables.replaceIn(pm.request.url.getPathWithQuery());",
+              "const rawBody = pm.request.body && pm.request.body.mode === 'raw' ? pm.variables.replaceIn(pm.request.body.raw || '') : '';",
+              "const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawBody)));",
+              "const bodyHash = Buffer.from(digest).toString('hex');",
+              "const canonical = ['AW-REQUEST-V1', pm.request.method.toUpperCase(), path, timestamp, nonce, bodyHash].join('\\n');",
+              "const signature = nacl.sign.detached(new TextEncoder().encode(canonical), new Uint8Array(fromB64u(pm.collectionVariables.get('authSecretKey'))));",
+              "pm.request.headers.upsert({ key: 'X-AW-Device-Id', value: pm.collectionVariables.get('deviceId') });",
+              "pm.request.headers.upsert({ key: 'X-AW-Timestamp', value: timestamp });",
+              "pm.request.headers.upsert({ key: 'X-AW-Nonce', value: nonce });",
+              "pm.request.headers.upsert({ key: 'X-AW-Signature', value: b64u(signature) });",
+              "pm.request.headers.upsert({ key: 'Accept', value: 'application/json' });"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "const json = pm.response.json();",
+              "const record = json.records.find(r => r.recordId === pm.collectionVariables.get('recordId'));",
+              "pm.test('Tombstone komt via sync terug', () => { pm.expect(record).to.be.an('object'); pm.expect(record.revision).to.eql(3); pm.expect(record.deleted).to.eql(true); pm.expect(record.ciphertext).to.eql(null); pm.expect(record.nonce).to.eql(null); });",
+              "pm.collectionVariables.set('cursor', String(json.nextCursor));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/sync?since={{cursor}}&limit=100",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "sync"
+          ]
+        }
+      }
+    },
+    {
+      "name": "12 - Delete test vault",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const nacl = pm.require('npm:tweetnacl@1.0.3');",
+              "const { Buffer } = require('buffer');",
+              "const b64u = bytes => Buffer.from(bytes).toString('base64').replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');",
+              "const fromB64u = value => Buffer.from(value.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - value.length % 4) % 4), 'base64');",
+              "const timestamp = Math.floor(Date.now() / 1000).toString();",
+              "const nonce = b64u(nacl.randomBytes(16));",
+              "const path = pm.variables.replaceIn(pm.request.url.getPathWithQuery());",
+              "const rawBody = pm.request.body && pm.request.body.mode === 'raw' ? pm.variables.replaceIn(pm.request.body.raw || '') : '';",
+              "const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rawBody)));",
+              "const bodyHash = Buffer.from(digest).toString('hex');",
+              "const canonical = ['AW-REQUEST-V1', pm.request.method.toUpperCase(), path, timestamp, nonce, bodyHash].join('\\n');",
+              "const signature = nacl.sign.detached(new TextEncoder().encode(canonical), new Uint8Array(fromB64u(pm.collectionVariables.get('authSecretKey'))));",
+              "pm.request.headers.upsert({ key: 'X-AW-Device-Id', value: pm.collectionVariables.get('deviceId') });",
+              "pm.request.headers.upsert({ key: 'X-AW-Timestamp', value: timestamp });",
+              "pm.request.headers.upsert({ key: 'X-AW-Nonce', value: nonce });",
+              "pm.request.headers.upsert({ key: 'X-AW-Signature', value: b64u(signature) });",
+              "pm.request.headers.upsert({ key: 'Accept', value: 'application/json' });"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "const json = pm.response.json();",
+              "pm.test('Vault verwijderd', () => pm.expect(json.status).to.eql('deleted'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"confirm\": \"DELETE\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/vaults/{{vaultId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "vaults",
+            "{{vaultId}}"
+          ]
+        }
+      }
+    }
+  ]
+}

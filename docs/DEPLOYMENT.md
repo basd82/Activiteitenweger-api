@@ -15,7 +15,8 @@ Deze handleiding beschrijft de huidige eenvoudige PHP/MySQL-deployment van de Ac
 │   ├── db.php
 │   └── handlers.php
 ├── sql/
-│   └── install.sql
+│   ├── install.sql
+│   └── migrations/
 └── tools/
     └── test-client.php
 ```
@@ -87,11 +88,11 @@ Controleer daarna de tabellen en foreign keys voordat de API publiek wordt gebru
 
 ## Bestaande database
 
-`migration.sql` voegt alleen de huidige request-nonce tabel toe aan een oudere installatie.
+Nieuwe schemawijzigingen staan als genummerde patches onder `sql/migrations/`. Voer alleen migraties uit die bij de nieuwe release horen en nog niet op de betreffende database zijn toegepast.
 
-Voer migraties altijd eerst uit op een backup/testomgeving.
+De historische rootfile `migration.sql` voegt alleen de request-nonce tabel toe aan een oudere installatie en wordt niet gebruikt als algemeen migratieframework.
 
-Voor toekomstige schemawijzigingen wordt een genummerde migratiestructuur voorzien; zie [DATABASE.md](DATABASE.md).
+Voer migraties altijd eerst uit op een backup/testomgeving. Zie [UPDATE.md](UPDATE.md) en [DATABASE.md](DATABASE.md).
 
 ## Bestandsrechten
 
@@ -144,7 +145,8 @@ Verwacht:
 {
   "status": "ok",
   "database": "ok",
-  "apiVersion": 1
+  "apiVersion": 1,
+  "serverVersion": "1.1.0"
 }
 ```
 
@@ -161,11 +163,14 @@ php tools/test-client.php create
 php tools/test-client.php me
 php tools/test-client.php devices
 php tools/test-client.php add-record
+php tools/test-client.php conflict
 php tools/test-client.php sync
 php tools/test-client.php delete-vault
 ```
 
 Let op: test-state kan private testkeys bevatten. Bewaar dit niet in Git en laat het niet achter op een publiek toegankelijke locatie.
+
+Voor een tweede onafhankelijke integratietest kan de stateful Postman-suite uit `docs/postman/` worden uitgevoerd. Deze controleert onder andere serverversie, signed requests, revision-conflicts, incrementele cursorsync en tombstones.
 
 ## Logging
 

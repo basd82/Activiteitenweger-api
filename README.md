@@ -11,7 +11,8 @@ De app en API worden afzonderlijk ontwikkeld, maar delen hetzelfde protocol en d
 
 ## Status
 
-API-versie: **v1**
+API-versie: **v1**  
+Serverversie: **1.1.0**
 
 Werkend in de huidige versie:
 
@@ -24,6 +25,8 @@ Werkend in de huidige versie:
 - toevoegen, wijzigen en verwijderen van versleutelde records;
 - revision-conflictcontrole;
 - cursor-gebaseerde synchronisatie;
+- conflictmetadata voor veilige client-side conflictafhandeling;
+- serverversie via health-response en `X-AW-Server-Version`;
 - tombstones voor verwijderde records;
 - volledige verwijdering van een vault door de owner;
 - key epochs en versleutelde key-envelopes in het datamodel.
@@ -180,6 +183,7 @@ php tools/test-client.php create
 php tools/test-client.php me
 php tools/test-client.php devices
 php tools/test-client.php add-record
+php tools/test-client.php conflict
 php tools/test-client.php sync
 php tools/test-client.php delete-vault
 ```
@@ -189,6 +193,9 @@ De testclient kan lokaal private testkeys opslaan. Behandel eventuele test-state
 ## Documentatie
 
 - [Installatiehandleiding](docs/INSTALL.md)
+- [Updatehandleiding](docs/UPDATE.md)
+- [Postman testcollectie](docs/postman/README.md)
+- [Changelog](CHANGELOG.md)
 - [API-protocol](docs/API.md)
 - [Database en datamodel](docs/DATABASE.md)
 - [Security](docs/SECURITY.md)

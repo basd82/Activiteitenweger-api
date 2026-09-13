@@ -12,13 +12,16 @@ function aw_handle_health(): never
         aw_json_response(200, [
             'status' => 'ok',
             'database' => 'ok',
-            'apiVersion' => 1,
+            'apiVersion' => AW_API_VERSION,
+            'serverVersion' => AW_SERVER_VERSION,
         ]);
     } catch (Throwable $e) {
         error_log('Healthcheck database error: ' . $e->getMessage());
         aw_json_response(503, [
             'status' => 'error',
             'database' => 'unavailable',
+            'apiVersion' => AW_API_VERSION,
+            'serverVersion' => AW_SERVER_VERSION,
         ]);
     }
 }
@@ -220,7 +223,13 @@ function aw_handle_upsert_record(array $auth, string $rawBody): never
     try {
         $db->begin_transaction();
 
-        $stmt = $db->prepare('SELECT vault_id, revision FROM records WHERE record_id = ? FOR UPDATE');
+        $stmt = $db->prepare(
+            "SELECT vault_id, revision, is_deleted,
+                    DATE_FORMAT(updated_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS updated_at
+               FROM records
+              WHERE record_id = ?
+              FOR UPDATE"
+        );
         $stmt->bind_param('s', $recordId);
         $stmt->execute();
         $existing = $stmt->get_result()->fetch_assoc();
@@ -239,7 +248,11 @@ function aw_handle_upsert_record(array $auth, string $rawBody): never
                 $db->rollback();
                 aw_json_response(409, [
                     'error' => 'revision_conflict',
+                    'recordId' => $recordId,
+                    'currentRevision' => (int)$existing['revision'],
                     'expectedRevision' => $expectedRevision,
+                    'currentDeleted' => (bool)$existing['is_deleted'],
+                    'currentUpdatedAt' => $existing['updated_at'],
                 ]);
             }
 
@@ -291,7 +304,11 @@ function aw_handle_upsert_record(array $auth, string $rawBody): never
                 $db->rollback();
                 aw_json_response(409, [
                     'error' => 'revision_conflict',
+                    'recordId' => $recordId,
+                    'currentRevision' => 0,
                     'expectedRevision' => 1,
+                    'currentDeleted' => false,
+                    'currentUpdatedAt' => null,
                 ]);
             }
             $created = true;

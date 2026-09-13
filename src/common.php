@@ -5,6 +5,8 @@
 
 declare(strict_types=1);
 
+const AW_API_VERSION = 1;
+const AW_SERVER_VERSION = '1.1.0';
 const AW_MAX_JSON_BYTES = 524288; // 512 KiB
 
 function aw_json_response(int $status, array $data): never
@@ -12,6 +14,7 @@ function aw_json_response(int $status, array $data): never
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store');
+    header('X-AW-Server-Version: ' . AW_SERVER_VERSION);
     echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     exit;
 }
