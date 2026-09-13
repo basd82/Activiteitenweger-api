@@ -106,9 +106,18 @@ Succes:
 {
   "status": "ok",
   "database": "ok",
-  "apiVersion": 1
+  "apiVersion": 1,
+  "serverVersion": "1.1.0"
 }
 ```
+
+Alle JSON-responses bevatten daarnaast de HTTP-header:
+
+```text
+X-AW-Server-Version: 1.1.0
+```
+
+`apiVersion` is de protocol-major en blijft `1` zolang `/api/v1` backwards-compatible blijft. `serverVersion` is de semantische softwareversie van de server en mag dus binnen API v1 oplopen.
 
 Status: `200`.
 
@@ -266,6 +275,21 @@ Belangrijke conflicts:
 - `409 stale_key_epoch`;
 - `409 revision_conflict`;
 - `409 record_id_conflict`.
+
+Bij een revision-conflict wordt de lokale wijziging **niet** opgeslagen. Voor een bestaand record bevat de response voldoende metadata om eerst opnieuw te synchroniseren:
+
+```json
+{
+  "error": "revision_conflict",
+  "recordId": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+  "currentRevision": 5,
+  "expectedRevision": 6,
+  "currentDeleted": false,
+  "currentUpdatedAt": "2026-09-13T14:00:00.000000Z"
+}
+```
+
+Een client mag na deze fout niet blind `expectedRevision` opnieuw versturen. Eerst moet de actuele serverstaat via `GET /sync` worden opgehaald en moet het conflict lokaal worden opgelost.
 
 ---
 
