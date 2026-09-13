@@ -137,6 +137,8 @@ php tools/test-client.php sync
 php tools/test-client.php delete-vault
 ```
 
+Daarnaast staat onder `docs/postman/` een Postman-collectie die dezelfde serverflow als stateful integratietest uitvoert. Importeer `docs/postman/Activiteitenweger-API.postman_collection.json` en draai de volledige collectie in volgorde wanneer je de release ook vanuit Postman wilt valideren.
+
 Controleer daarnaast bij een sync-gerelateerde release minimaal:
 
 - record revision 1 kan worden aangemaakt;
