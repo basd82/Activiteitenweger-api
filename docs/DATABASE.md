@@ -23,18 +23,18 @@ Alle applicatietijden worden als UTC behandeld.
 ## Relaties
 
 ```text
+devices
+ ├── vault_devices ── vaults
+ └── request_nonces
+
 vaults
- ├── devices
- │    └── request_nonces
  ├── key_epochs
  │    └── device_key_envelopes
  ├── pairing_invites
  ├── records
  │    └── sync_events
- └── device_key_envelopes
+ └── vault_devices
 ```
-
-Belangrijk: dit beschrijft het **huidige** schema. Voor echte multi-client pairing wordt het device-model aangepast; zie "Geplande migratie".
 
 ## vaults
 
@@ -54,7 +54,7 @@ Een vault is de cryptografische en synchronisatie-eenheid.
 
 ## devices
 
-Huidige primaire sleutel:
+Primaire sleutel:
 
 ```text
 device_id CHAR(36)
@@ -62,22 +62,14 @@ device_id CHAR(36)
 
 Belangrijkste velden:
 
-- `vault_id`
-- `access_mode`: `R` of `RW`
-- `is_owner`
-- `status`: `ACTIVE` of `REVOKED`
-- `auth_public_key` — Ed25519
-- `encryption_public_key` — X25519
-- encrypted label-velden
-- `created_at`
-- `last_seen_at`
-- `revoked_at`
+- `status`: globale device-identiteitsstatus;
+- `auth_public_key` — Ed25519;
+- `encryption_public_key` — X25519;
+- encrypted label-velden;
+- `created_at`;
+- `last_seen_at`.
 
-### Huidige beperking
-
-Een device hoort nu rechtstreeks bij precies één vault. Dat is voldoende voor de eerste geauthenticeerde sync-laag, maar niet voor een behandelaar die vanaf één apparaat meerdere cliëntvaults moet kunnen openen.
-
-Daarom wordt dit model vóór pairing vervangen.
+Vaultspecifieke rechten staan niet in deze tabel maar in `vault_devices`.
 
 ## key_epochs
 
@@ -213,7 +205,8 @@ De huidige foreign keys zijn zo ingericht dat volledige vaultverwijdering werkt.
 
 Belangrijkste regels:
 
-- `devices.vault_id -> vaults`: CASCADE
+- `vault_devices.vault_id -> vaults`: CASCADE
+- `vault_devices.device_id -> devices`: CASCADE
 - `key_epochs.vault_id -> vaults`: CASCADE
 - `device_key_envelopes.device_id -> devices`: CASCADE
 - `device_key_envelopes.(vault_id, epoch) -> key_epochs`: CASCADE
