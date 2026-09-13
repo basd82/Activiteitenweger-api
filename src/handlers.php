@@ -606,7 +606,7 @@ function aw_handle_claim_pairing(string $rawBody): never
     $pairingSecret = aw_decode_binary_field($data, 'pairingSecret', 16);
     $authPublicKey = aw_decode_binary_field($data, 'authPublicKey', 32);
     $encryptionPublicKey = aw_decode_binary_field($data, 'encryptionPublicKey', 32);
-    $secretHash = hash('sha256', $pairingSecret, true);
+    $secretHash = hash('sha256', "AW-PAIRING-VERIFY-V1\n" . $pairingSecret, true);
 
     $db = aw_db();
     try {
