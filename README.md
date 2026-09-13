@@ -195,6 +195,12 @@ De testclient kan lokaal private testkeys opslaan. Behandel eventuele test-state
 - [Deployment](docs/DEPLOYMENT.md)
 - [Roadmap](docs/ROADMAP.md)
 
-## Licentie
+## Auteursrecht en licentie
 
-Er is op dit moment nog geen licentiebestand aan deze repository toegevoegd. Zonder expliciete licentie blijven de normale auteursrechten van toepassing.
+Copyright © 2026 Bas van den Dikkenberg.
+
+De Activiteitenweger API is vrije/open-sourcesoftware en wordt uitgebracht onder de **GNU General Public License versie 3.0 (GPL-3.0-only)**.
+
+Je mag de software gebruiken, bestuderen, wijzigen en verspreiden onder de voorwaarden van GPLv3. Er wordt geen garantie gegeven, voor zover wettelijk toegestaan.
+
+Zie [LICENSE](LICENSE) voor de volledige licentietekst.
