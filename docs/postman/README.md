@@ -4,7 +4,7 @@ Deze directory bevat de Postman-collectie voor de Activiteitenweger API.
 
 ## Bestand
 
-- `Activiteitenweger-API.postman_collection.json` — stateful smoke/integratietest voor API v1 / server 1.1.0.
+- `Activiteitenweger-API.postman_collection.json` — stateful smoke/integratietest voor API v1 / server 1.2.0.
 
 ## Belangrijk: geen externe npm-packages
 
@@ -50,3 +50,18 @@ Voor record-ciphertext gebruikt de suite willekeurige bytes. De API hoort cipher
 Voer de collectie als geheel uit. Latere requests gebruiken collection variables die door eerdere requests zijn aangemaakt.
 
 Wanneer een run vóór de laatste request stopt, kan de tijdelijke test-vault blijven bestaan. Start dan een nieuwe volledige run of verwijder de test-vault met de opgeslagen collection variables voordat je die state wist.
+
+
+## Pairing-suite
+
+De pairing-collectie maakt een tijdelijke owner-vault en controleert in volgorde:
+
+1. R-koppelinvite maken en claimen;
+2. R-device kan lezen maar krijgt `403 write_access_required` bij schrijven;
+3. RW-koppelinvite maken en claimen;
+4. owner ziet alle devices en rechten;
+5. owner trekt RW-toegang in;
+6. het ingetrokken device krijgt daarna `401 vault_access_revoked`;
+7. test-vault wordt opgeruimd.
+
+Ook deze suite gebruikt uitsluitend native Web Crypto en `require('buffer')`; er zijn **geen externe npm-packages** nodig.
