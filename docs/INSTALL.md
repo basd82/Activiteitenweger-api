@@ -275,7 +275,8 @@ Verwachte response:
 {
   "status": "ok",
   "database": "ok",
-  "apiVersion": 1
+  "apiVersion": 1,
+  "serverVersion": "1.1.0"
 }
 ```
 
@@ -361,23 +362,19 @@ Pairing, multi-client grants, revoke en key rotation zijn nog vervolgstappen en 
 
 ## 12. Bijwerken
 
-Voor een code-update:
+Gebruik voor bestaande installaties de aparte [updatehandleiding](UPDATE.md).
+
+Kort samengevat:
 
 ```bash
 cd /var/www/activiteitenweger
-git pull
+git fetch --all --prune
+git pull --ff-only
 ```
 
-Daarna:
+Controleer daarna `CHANGELOG.md` en `sql/migrations/` op databasepatches die bij de nieuwe release horen, voer de PHP syntaxcheck uit en controleer `/api/v1/health`.
 
-```bash
-find public src tools -name '*.php' -print0 \
-  | xargs -0 -n1 php -l
-
-curl -fsS https://app.dikkenberg.net/api/v1/health
-```
-
-Als een release een database-migratie bevat, voer die gecontroleerd uit vóór of tijdens de deployment volgens de bijbehorende release-instructies.
+Server 1.1.0 bevat geen database-schemawijziging en vereist geen SQL-migratie.
 
 ## 13. Niet in Git zetten
 
