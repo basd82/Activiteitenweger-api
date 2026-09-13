@@ -11,6 +11,8 @@ Alle noemenswaardige wijzigingen aan de Activiteitenweger API worden hier bijgeh
 - Uitgebreide metadata bij `409 revision_conflict`: `recordId`, `currentRevision`, `expectedRevision`, `currentDeleted` en `currentUpdatedAt`.
 - Genummerde migratiestructuur onder `sql/migrations/`.
 - Aparte updatehandleiding in `docs/UPDATE.md`.
+- Stateful Postman-collectie onder `docs/postman/` voor health, signing, revisions, cursor-sync, conflicts en tombstones.
+- Uitgebreide PHP-smoke-test met expliciete `revision_conflict`-test.
 
 ### Synchronisatie
 - De bestaande revisioncontrole blijft leidend: een bestaand record accepteert alleen exact `huidige revision + 1`.
