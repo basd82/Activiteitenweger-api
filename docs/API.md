@@ -378,7 +378,7 @@ Succes:
 }
 ```
 
-Door de foreign-key cascades worden bij volledige vaultverwijdering de bijbehorende records, sync-events, key epochs, envelopes, pairing-invites, devices en request-nonces verwijderd.
+Door de foreign-key cascades worden vaultgebonden records, sync-events, key epochs, envelopes, pairing-invites en vault-device grants verwijderd. Globale device-identiteiten blijven bestaan wanneer ze nog aan een andere vault gekoppeld zijn; volledig verweesde device-identiteiten worden daarna opgeruimd.
 
 ## HTTP-statuscodes
 
