@@ -43,13 +43,17 @@ function aw_require_auth(string $rawBody): array
         aw_json_response(500, ['error' => 'server_crypto_unavailable']);
     }
 
-    $deviceId   = aw_header('X-AW-Device-Id');
-    $timestamp  = aw_header('X-AW-Timestamp');
+    $deviceId = aw_header('X-AW-Device-Id');
+    $vaultHeader = aw_header('X-AW-Vault-Id');
+    $timestamp = aw_header('X-AW-Timestamp');
     $nonceValue = aw_header('X-AW-Nonce');
     $signatureValue = aw_header('X-AW-Signature');
 
     if ($deviceId === null || !aw_valid_uuid($deviceId)) {
         aw_json_response(401, ['error' => 'authentication_required']);
+    }
+    if ($vaultHeader !== null && !aw_valid_uuid($vaultHeader)) {
+        aw_json_response(401, ['error' => 'invalid_vault_context']);
     }
     if ($timestamp === null || preg_match('/^[0-9]{10}$/', $timestamp) !== 1) {
         aw_json_response(401, ['error' => 'invalid_timestamp']);
@@ -77,17 +81,15 @@ function aw_require_auth(string $rawBody): array
     }
 
     $db = aw_db();
+
     $stmt = $db->prepare(
-        'SELECT d.device_id, d.vault_id, d.access_mode, d.is_owner, d.status,
-                d.auth_public_key, v.current_key_epoch
-           FROM devices d
-           JOIN vaults v ON v.vault_id = d.vault_id
-          WHERE d.device_id = ?'
+        'SELECT device_id, status, auth_public_key
+           FROM devices
+          WHERE device_id = ?'
     );
     $stmt->bind_param('s', $deviceId);
     $stmt->execute();
-    $result = $stmt->get_result();
-    $device = $result->fetch_assoc();
+    $device = $stmt->get_result()->fetch_assoc();
     $stmt->close();
 
     if (!$device || $device['status'] !== 'ACTIVE') {
@@ -112,6 +114,50 @@ function aw_require_auth(string $rawBody): array
         aw_json_response(401, ['error' => 'signature_verification_failed']);
     }
 
+    if ($vaultHeader !== null) {
+        $stmt = $db->prepare(
+            "SELECT vd.vault_id, vd.access_mode, vd.is_owner, vd.status,
+                    v.current_key_epoch
+               FROM vault_devices vd
+               JOIN vaults v ON v.vault_id = vd.vault_id
+              WHERE vd.device_id = ? AND vd.vault_id = ?"
+        );
+        $stmt->bind_param('ss', $deviceId, $vaultHeader);
+    } else {
+        // Backwards compatibility for existing single-vault clients. Once a
+        // device has multiple active vaults, X-AW-Vault-Id becomes mandatory.
+        $stmt = $db->prepare(
+            "SELECT vd.vault_id, vd.access_mode, vd.is_owner, vd.status,
+                    v.current_key_epoch
+               FROM vault_devices vd
+               JOIN vaults v ON v.vault_id = vd.vault_id
+              WHERE vd.device_id = ? AND vd.status = 'ACTIVE'
+              ORDER BY vd.created_at
+              LIMIT 2"
+        );
+        $stmt->bind_param('s', $deviceId);
+    }
+
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $grants = [];
+    while ($row = $result->fetch_assoc()) {
+        $grants[] = $row;
+    }
+    $stmt->close();
+
+    if ($grants === []) {
+        aw_json_response(401, ['error' => 'vault_access_not_found']);
+    }
+    if ($vaultHeader === null && count($grants) !== 1) {
+        aw_json_response(400, ['error' => 'vault_context_required']);
+    }
+
+    $grant = $grants[0];
+    if ($grant['status'] !== 'ACTIVE') {
+        aw_json_response(401, ['error' => 'vault_access_revoked']);
+    }
+
     $nonceHash = hash('sha256', $nonce, true);
     try {
         $stmt = $db->prepare(
@@ -128,8 +174,6 @@ function aw_require_auth(string $rawBody): array
         throw $e;
     }
 
-    // Nonces ouder dan de toegestane tijdsvenster zijn niet meer bruikbaar.
-    // Beperk de cleanup per request om de tabel klein te houden zonder zware opruimactie.
     $db->query(
         'DELETE FROM request_nonces
           WHERE created_at < UTC_TIMESTAMP(6) - INTERVAL 10 MINUTE
@@ -141,10 +185,14 @@ function aw_require_auth(string $rawBody): array
     $stmt->execute();
     $stmt->close();
 
-    $device['is_owner'] = (bool)$device['is_owner'];
-    $device['current_key_epoch'] = (int)$device['current_key_epoch'];
-
-    return $device;
+    return [
+        'device_id' => $deviceId,
+        'vault_id' => $grant['vault_id'],
+        'access_mode' => $grant['access_mode'],
+        'is_owner' => (bool)$grant['is_owner'],
+        'auth_public_key' => $publicKey,
+        'current_key_epoch' => (int)$grant['current_key_epoch'],
+    ];
 }
 
 function aw_require_rw(array $auth): void
