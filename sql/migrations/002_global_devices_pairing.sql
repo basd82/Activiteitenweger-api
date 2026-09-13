@@ -50,7 +50,7 @@ ALTER TABLE devices
 ALTER TABLE pairing_invites
     ADD COLUMN pairing_secret_hash binary(32) DEFAULT NULL AFTER invite_id,
     ADD COLUMN revoked_by char(36) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL AFTER claimed_by_device_id,
-    ADD KEY idx_pairing_secret_hash (pairing_secret_hash),
+    ADD UNIQUE KEY uq_pairing_secret_hash (pairing_secret_hash),
     ADD KEY fk_pairing_revoked_by (revoked_by),
     ADD CONSTRAINT fk_pairing_revoked_by
         FOREIGN KEY (revoked_by) REFERENCES devices(device_id) ON DELETE SET NULL;
