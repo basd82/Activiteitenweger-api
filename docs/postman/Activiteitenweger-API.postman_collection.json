@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "Activiteitenweger API v1 - Server 1.1.0",
-    "description": "Stateful server smoke/integration test voor API v1 / server 1.1.0. Zonder externe npm-packages: gebruikt Postman built-ins en native Web Crypto (SHA-256 + Ed25519). De suite test revisions, cursor-sync, revision_conflict en tombstones.",
+    "name": "Activiteitenweger API v1 - Server 1.2.0",
+    "description": "Stateful server smoke/integration test voor API v1 / server 1.2.0. Zonder externe npm-packages: gebruikt Postman built-ins en native Web Crypto (SHA-256 + Ed25519). De suite test revisions, cursor-sync, revision_conflict en tombstones.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -12,7 +12,7 @@
     },
     {
       "key": "serverVersion",
-      "value": "1.1.0",
+      "value": "1.2.0",
       "type": "string"
     },
     {
@@ -313,6 +313,7 @@
               "        new Uint8Array(Buffer.from(canonical, 'utf8'))",
               "    ));",
               "    pm.request.headers.upsert({ key: 'X-AW-Device-Id', value: deviceId });",
+              "pm.request.headers.upsert({ key: 'X-AW-Vault-Id', value: pm.collectionVariables.get('vaultId') });",
               "    pm.request.headers.upsert({ key: 'X-AW-Timestamp', value: timestamp });",
               "    pm.request.headers.upsert({ key: 'X-AW-Nonce', value: nonce });",
               "    pm.request.headers.upsert({ key: 'X-AW-Signature', value: b64u(signature) });",
@@ -451,6 +452,7 @@
               "        new Uint8Array(Buffer.from(canonical, 'utf8'))",
               "    ));",
               "    pm.request.headers.upsert({ key: 'X-AW-Device-Id', value: deviceId });",
+              "pm.request.headers.upsert({ key: 'X-AW-Vault-Id', value: pm.collectionVariables.get('vaultId') });",
               "    pm.request.headers.upsert({ key: 'X-AW-Timestamp', value: timestamp });",
               "    pm.request.headers.upsert({ key: 'X-AW-Nonce', value: nonce });",
               "    pm.request.headers.upsert({ key: 'X-AW-Signature', value: b64u(signature) });",
@@ -589,6 +591,7 @@
               "        new Uint8Array(Buffer.from(canonical, 'utf8'))",
               "    ));",
               "    pm.request.headers.upsert({ key: 'X-AW-Device-Id', value: deviceId });",
+              "pm.request.headers.upsert({ key: 'X-AW-Vault-Id', value: pm.collectionVariables.get('vaultId') });",
               "    pm.request.headers.upsert({ key: 'X-AW-Timestamp', value: timestamp });",
               "    pm.request.headers.upsert({ key: 'X-AW-Nonce', value: nonce });",
               "    pm.request.headers.upsert({ key: 'X-AW-Signature', value: b64u(signature) });",
@@ -753,6 +756,7 @@
               "        new Uint8Array(Buffer.from(canonical, 'utf8'))",
               "    ));",
               "    pm.request.headers.upsert({ key: 'X-AW-Device-Id', value: deviceId });",
+              "pm.request.headers.upsert({ key: 'X-AW-Vault-Id', value: pm.collectionVariables.get('vaultId') });",
               "    pm.request.headers.upsert({ key: 'X-AW-Timestamp', value: timestamp });",
               "    pm.request.headers.upsert({ key: 'X-AW-Nonce', value: nonce });",
               "    pm.request.headers.upsert({ key: 'X-AW-Signature', value: b64u(signature) });",
@@ -888,6 +892,7 @@
               "        new Uint8Array(Buffer.from(canonical, 'utf8'))",
               "    ));",
               "    pm.request.headers.upsert({ key: 'X-AW-Device-Id', value: deviceId });",
+              "pm.request.headers.upsert({ key: 'X-AW-Vault-Id', value: pm.collectionVariables.get('vaultId') });",
               "    pm.request.headers.upsert({ key: 'X-AW-Timestamp', value: timestamp });",
               "    pm.request.headers.upsert({ key: 'X-AW-Nonce', value: nonce });",
               "    pm.request.headers.upsert({ key: 'X-AW-Signature', value: b64u(signature) });",
@@ -1051,6 +1056,7 @@
               "        new Uint8Array(Buffer.from(canonical, 'utf8'))",
               "    ));",
               "    pm.request.headers.upsert({ key: 'X-AW-Device-Id', value: deviceId });",
+              "pm.request.headers.upsert({ key: 'X-AW-Vault-Id', value: pm.collectionVariables.get('vaultId') });",
               "    pm.request.headers.upsert({ key: 'X-AW-Timestamp', value: timestamp });",
               "    pm.request.headers.upsert({ key: 'X-AW-Nonce', value: nonce });",
               "    pm.request.headers.upsert({ key: 'X-AW-Signature', value: b64u(signature) });",
@@ -1221,6 +1227,7 @@
               "        new Uint8Array(Buffer.from(canonical, 'utf8'))",
               "    ));",
               "    pm.request.headers.upsert({ key: 'X-AW-Device-Id', value: deviceId });",
+              "pm.request.headers.upsert({ key: 'X-AW-Vault-Id', value: pm.collectionVariables.get('vaultId') });",
               "    pm.request.headers.upsert({ key: 'X-AW-Timestamp', value: timestamp });",
               "    pm.request.headers.upsert({ key: 'X-AW-Nonce', value: nonce });",
               "    pm.request.headers.upsert({ key: 'X-AW-Signature', value: b64u(signature) });",
@@ -1355,6 +1362,7 @@
               "        new Uint8Array(Buffer.from(canonical, 'utf8'))",
               "    ));",
               "    pm.request.headers.upsert({ key: 'X-AW-Device-Id', value: deviceId });",
+              "pm.request.headers.upsert({ key: 'X-AW-Vault-Id', value: pm.collectionVariables.get('vaultId') });",
               "    pm.request.headers.upsert({ key: 'X-AW-Timestamp', value: timestamp });",
               "    pm.request.headers.upsert({ key: 'X-AW-Nonce', value: nonce });",
               "    pm.request.headers.upsert({ key: 'X-AW-Signature', value: b64u(signature) });",
@@ -1514,6 +1522,7 @@
               "        new Uint8Array(Buffer.from(canonical, 'utf8'))",
               "    ));",
               "    pm.request.headers.upsert({ key: 'X-AW-Device-Id', value: deviceId });",
+              "pm.request.headers.upsert({ key: 'X-AW-Vault-Id', value: pm.collectionVariables.get('vaultId') });",
               "    pm.request.headers.upsert({ key: 'X-AW-Timestamp', value: timestamp });",
               "    pm.request.headers.upsert({ key: 'X-AW-Nonce', value: nonce });",
               "    pm.request.headers.upsert({ key: 'X-AW-Signature', value: b64u(signature) });",
@@ -1654,6 +1663,7 @@
               "        new Uint8Array(Buffer.from(canonical, 'utf8'))",
               "    ));",
               "    pm.request.headers.upsert({ key: 'X-AW-Device-Id', value: deviceId });",
+              "pm.request.headers.upsert({ key: 'X-AW-Vault-Id', value: pm.collectionVariables.get('vaultId') });",
               "    pm.request.headers.upsert({ key: 'X-AW-Timestamp', value: timestamp });",
               "    pm.request.headers.upsert({ key: 'X-AW-Nonce', value: nonce });",
               "    pm.request.headers.upsert({ key: 'X-AW-Signature', value: b64u(signature) });",
