@@ -36,11 +36,7 @@ Werkend in de huidige versie:
 
 Nog **niet** functioneel beschikbaar:
 
-- pairing via code/QR/link;
-- device grants voor meerdere vaults per device;
-- koppelen van een behandelaar aan meerdere cliënten;
-- self-revoke en owner-revoke;
-- key rotation na revoke;
+- automatische key rotation na revoke;
 - audit/access-events en notificaties;
 - rate limiting op de publieke create-vault endpoint.
 
@@ -127,6 +123,11 @@ Verwachte health-response:
 | `POST` | `/api/v1/vaults` | openbaar |
 | `GET` | `/api/v1/me` | signed R/RW |
 | `GET` | `/api/v1/devices` | signed RW |
+| `POST` | `/api/v1/pairing/invites` | signed owner/RW |
+| `POST` | `/api/v1/pairing/claim` | pairing secret |
+| `DELETE` | `/api/v1/pairing/invites/{inviteId}` | signed owner/RW |
+| `DELETE` | `/api/v1/devices/{deviceId}` | signed owner/RW |
+| `DELETE` | `/api/v1/me/access` | signed non-owner R/RW |
 | `POST` | `/api/v1/records` | signed RW + recordsignature |
 | `GET` | `/api/v1/sync?since=0&limit=100` | signed R/RW |
 | `DELETE` | `/api/v1/vaults/{vaultId}` | signed owner/RW |
@@ -164,6 +165,7 @@ Het huidige schema bevat:
 
 - `vaults`
 - `devices`
+- `vault_devices`
 - `key_epochs`
 - `device_key_envelopes`
 - `pairing_invites`
@@ -171,7 +173,7 @@ Het huidige schema bevat:
 - `sync_events`
 - `request_nonces`
 
-Belangrijk: het huidige `devices`-model koppelt een device rechtstreeks aan één vault. Dit wordt vóór de echte pairing-functionaliteit vervangen door een globaal device-model met een many-to-many `vault_devices`-relatie.
+`devices` bevat globale cryptografische device-identiteit. Per-vault toegang staat in `vault_devices`, zodat één device toegang kan hebben tot meerdere vaults en een vault meerdere R/RW-devices kan hebben.
 
 Zie [docs/DATABASE.md](docs/DATABASE.md).
 
