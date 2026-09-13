@@ -5,7 +5,16 @@ on:
   pull_request:
 
 jobs:
-  test:
+  php-syntax:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "workflow-ok"
+      - uses: actions/checkout@v4
+      - name: PHP syntax
+        run: |
+          php -l public/index.php
+          php -l src/common.php
+          php -l src/auth.php
+          php -l src/handlers.php
+      - name: Sodium extension
+        run: |
+          php -r "exit(extension_loaded('sodium') ? 0 : 1);"
