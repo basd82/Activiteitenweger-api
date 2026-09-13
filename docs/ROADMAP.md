@@ -158,11 +158,13 @@ Status: **gepland**
 
 ## Fase 9 — Releasebeheer
 
+Status: **deels actief vanaf server 1.1.0**
+
 Voor productie/stabiele releases:
 
-- semantische app/API-versies;
-- changelog;
-- migration versie bijhouden;
+- semantische serverversie naast de API-major — actief;
+- changelog — actief;
+- genummerde SQL-migraties — structuur actief, eerste schemawijziging volgt bij noodzaak;
 - compatibility matrix app ↔ API;
 - backwards-compatible API-evolutie binnen `/api/v1`;
 - alleen breaking wijziging via nieuwe API major.
