@@ -688,22 +688,6 @@ function aw_handle_claim_pairing(string $rawBody): never
         $stmt->close();
 
         $stmt = $db->prepare(
-            'INSERT INTO device_key_envelopes
-                (vault_id, epoch, device_id, envelope_ciphertext, envelope_nonce, crypto_version)
-             VALUES (?, ?, ?, ?, ?, 1)'
-        );
-        $stmt->bind_param(
-            'sisss',
-            $invite['vault_id'],
-            $invite['key_epoch'],
-            $deviceId,
-            $invite['key_package_ciphertext'],
-            $invite['key_package_nonce']
-        );
-        $stmt->execute();
-        $stmt->close();
-
-        $stmt = $db->prepare(
             "UPDATE pairing_invites
                 SET status = 'CLAIMED',
                     claimed_at = UTC_TIMESTAMP(6),
