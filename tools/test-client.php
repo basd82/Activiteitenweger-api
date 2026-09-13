@@ -127,6 +127,53 @@ function printResponse(int $status, mixed $body): void
     }
 }
 
+function encryptedRecordBody(array $state, string $recordId, int $revision, string $description): string
+{
+    $epoch = 1;
+    $nonce = random_bytes(SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
+    $vaultKey = unb64u($state['vaultKey']);
+
+    $activity = json_encode([
+        'schemaVersion' => 1,
+        'type' => 'activity',
+        'startedAt' => gmdate('Y-m-d\\TH:i:s\\Z'),
+        'endedAt' => null,
+        'description' => $description,
+        'category' => 'licht',
+    ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+
+    $ciphertext = sodium_crypto_aead_xchacha20poly1305_ietf_encrypt(
+        $activity,
+        $recordId,
+        $nonce,
+        $vaultKey
+    );
+
+    $recordCanonical = canonicalRecord(
+        $state['vaultId'],
+        $recordId,
+        $revision,
+        $epoch,
+        false,
+        $nonce,
+        $ciphertext
+    );
+    $recordSignature = sodium_crypto_sign_detached(
+        $recordCanonical,
+        unb64u($state['authSecretKey'])
+    );
+
+    return json_encode([
+        'recordId' => $recordId,
+        'revision' => $revision,
+        'keyEpoch' => $epoch,
+        'deleted' => false,
+        'ciphertext' => b64u($ciphertext),
+        'nonce' => b64u($nonce),
+        'recordSignature' => b64u($recordSignature),
+    ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+}
+
 $command = $argv[1] ?? '';
 
 try {
@@ -235,6 +282,58 @@ try {
         exit(in_array($status, [200, 201], true) ? 0 : 1);
     }
 
+    if ($command === 'conflict') {
+        $recordId = uuid4();
+
+        [$createStatus, $createResponse] = httpRequest(
+            'POST',
+            '/api/v1/records',
+            encryptedRecordBody($state, $recordId, 1, 'Conflict test revision 1'),
+            $state
+        );
+        echo "Create revision 1:\n";
+        printResponse($createStatus, $createResponse);
+        if ($createStatus !== 201) {
+            exit(1);
+        }
+
+        [$updateStatus, $updateResponse] = httpRequest(
+            'POST',
+            '/api/v1/records',
+            encryptedRecordBody($state, $recordId, 2, 'Conflict test winnaar'),
+            $state
+        );
+        echo "Update revision 2:\n";
+        printResponse($updateStatus, $updateResponse);
+        if ($updateStatus !== 200) {
+            exit(1);
+        }
+
+        [$conflictStatus, $conflictResponse] = httpRequest(
+            'POST',
+            '/api/v1/records',
+            encryptedRecordBody($state, $recordId, 2, 'Conflict test stale client'),
+            $state
+        );
+        echo "Stale revision 2:\n";
+        printResponse($conflictStatus, $conflictResponse);
+
+        $ok = $conflictStatus === 409
+            && is_array($conflictResponse)
+            && ($conflictResponse['error'] ?? null) === 'revision_conflict'
+            && ($conflictResponse['recordId'] ?? null) === $recordId
+            && (int)($conflictResponse['currentRevision'] ?? -1) === 2
+            && (int)($conflictResponse['expectedRevision'] ?? -1) === 3
+            && ($conflictResponse['currentDeleted'] ?? null) === false
+            && is_string($conflictResponse['currentUpdatedAt'] ?? null);
+
+        if ($ok) {
+            echo "Revision-conflict test geslaagd.\n";
+        }
+
+        exit($ok ? 0 : 1);
+    }
+
     if ($command === 'sync') {
         $uri = '/api/v1/sync?since=' . (int)$state['cursor'] . '&limit=100';
         [$status, $response] = httpRequest('GET', $uri, '', $state);
@@ -262,6 +361,7 @@ try {
     fwrite(STDERR, "  php tools/test-client.php me\n");
     fwrite(STDERR, "  php tools/test-client.php devices\n");
     fwrite(STDERR, "  php tools/test-client.php add-record\n");
+    fwrite(STDERR, "  php tools/test-client.php conflict\n");
     fwrite(STDERR, "  php tools/test-client.php sync\n");
     fwrite(STDERR, "  php tools/test-client.php delete-vault\n");
     exit(2);
