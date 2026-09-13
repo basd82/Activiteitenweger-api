@@ -20,6 +20,8 @@ function aw_handle_health(): never
         aw_json_response(503, [
             'status' => 'error',
             'database' => 'unavailable',
+            'apiVersion' => AW_API_VERSION,
+            'serverVersion' => AW_SERVER_VERSION,
         ]);
     }
 }
