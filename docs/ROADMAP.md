@@ -1,5 +1,20 @@
 # Roadmap
 
+## Server 1.2.0 — pairingbasis
+
+Geïmplementeerd:
+- globale devices;
+- many-to-many vault grants;
+- R/RW;
+- pairing invites/claim;
+- device revoke en self-revoke;
+- multi-vault requestcontext.
+
+Nog te bouwen na deze fase:
+- key rotation na revoke voor forward secrecy;
+- audit/access events;
+- generieke pushmeldingen.
+
 Deze roadmap beschrijft de API-kant van Activiteitenweger.
 
 ## Fase 1 — Basis sync-laag
