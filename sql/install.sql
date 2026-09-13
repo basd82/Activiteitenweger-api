@@ -1,5 +1,6 @@
 -- SPDX-License-Identifier: GPL-3.0-only
 -- Copyright (C) 2026 Bas van den Dikkenberg
+-- Activiteitenweger database schema version: 1
 
 -- phpMyAdmin SQL Dump
 -- version 5.2.2deb1+deb13u1
