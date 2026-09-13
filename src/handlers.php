@@ -718,6 +718,7 @@ function aw_handle_claim_pairing(string $rawBody): never
 
         aw_json_response(201, [
             'status' => 'ok',
+            'inviteId' => $invite['invite_id'],
             'vaultId' => $invite['vault_id'],
             'deviceId' => $deviceId,
             'access' => $invite['access_mode'],
