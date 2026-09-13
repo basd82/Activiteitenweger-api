@@ -2,7 +2,12 @@
 
 Backend voor de **Activiteitenweger**-app. De API bewaart en synchroniseert versleutelde vault-records, maar hoort de inhoud van activiteiten niet te kunnen ontsleutelen.
 
-De bijbehorende Kotlin Multiplatform-app staat in [basd82/Activiteitenweger](https://github.com/basd82/Activiteitenweger).
+## Repositories
+
+- **App:** [basd82/Activiteitenweger](https://github.com/basd82/Activiteitenweger)
+- **API:** [basd82/Activiteitenweger-api](https://github.com/basd82/Activiteitenweger-api)
+
+De app en API worden afzonderlijk ontwikkeld, maar delen hetzelfde protocol en datamodel.
 
 ## Status
 
@@ -68,7 +73,9 @@ https://app.dikkenberg.net/api/v1
 
 ## Installatie
 
-Maak eerst de database aan en voer daarna het huidige schema uit:
+Voor een volledige installatie vanaf een lege server/database: **[docs/INSTALL.md](docs/INSTALL.md)**.
+
+Kort samengevat: maak eerst de database aan en voer daarna het huidige schema uit:
 
 ```bash
 mysql activiteitenweger < sql/install.sql
@@ -181,6 +188,7 @@ De testclient kan lokaal private testkeys opslaan. Behandel eventuele test-state
 
 ## Documentatie
 
+- [Installatiehandleiding](docs/INSTALL.md)
 - [API-protocol](docs/API.md)
 - [Database en datamodel](docs/DATABASE.md)
 - [Security](docs/SECURITY.md)
