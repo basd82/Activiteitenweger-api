@@ -791,10 +791,13 @@
             "exec": [
               "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
               "const json = pm.response.json();",
-              "pm.test('Revision 1 komt via sync terug', () => pm.expect(json.records.some(r => r.recordId === pm.collectionVariables.get('recordId') && r.revision === 1 && r.deleted === false)).to.eql(true));",
-              "pm.test('Cursor loopt vooruit', () => pm.expect(json.nextCursor).to.be.above(Number(pm.collectionVariables.get('cursor'))));",
-              "pm.collectionVariables.set('cursor', String(json.nextCursor));",
-              "pm.collectionVariables.set('cursorAfterCreate', String(json.nextCursor));"
+              "const records = Array.isArray(json.records) ? json.records : [];",
+              "pm.test('Revision 1 komt via sync terug', () => pm.expect(records.some(r => r.recordId === pm.collectionVariables.get('recordId') && r.revision === 1 && r.deleted === false)).to.eql(true));",
+              "pm.test('Cursor loopt vooruit', () => pm.expect(Number(json.nextCursor)).to.be.above(Number(pm.collectionVariables.get('cursor'))));",
+              "if (pm.response.code === 200 && json.nextCursor !== undefined) {",
+              "    pm.collectionVariables.set('cursor', String(json.nextCursor));",
+              "    pm.collectionVariables.set('cursorAfterCreate', String(json.nextCursor));",
+              "}"
             ]
           }
         }
@@ -802,17 +805,7 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/v1/sync?since={{cursor}}&limit=100",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "sync"
-          ]
-        }
+        "url": "{{baseUrl}}/api/v1/sync?since={{cursor}}&limit=100"
       }
     },
     {
@@ -1266,9 +1259,12 @@
             "exec": [
               "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
               "const json = pm.response.json();",
-              "pm.test('Alleen actuele recordstaat revision 2', () => pm.expect(json.records.some(r => r.recordId === pm.collectionVariables.get('recordId') && r.revision === 2 && r.deleted === false)).to.eql(true));",
-              "pm.test('Cursor loopt verder', () => pm.expect(json.nextCursor).to.be.above(Number(pm.collectionVariables.get('cursorAfterCreate'))));",
-              "pm.collectionVariables.set('cursor', String(json.nextCursor));"
+              "const records = Array.isArray(json.records) ? json.records : [];",
+              "pm.test('Actuele recordstaat is revision 2', () => pm.expect(records.some(r => r.recordId === pm.collectionVariables.get('recordId') && r.revision === 2 && r.deleted === false)).to.eql(true));",
+              "pm.test('Cursor loopt verder', () => pm.expect(Number(json.nextCursor)).to.be.above(Number(pm.collectionVariables.get('cursorAfterCreate'))));",
+              "if (pm.response.code === 200 && json.nextCursor !== undefined) {",
+              "    pm.collectionVariables.set('cursor', String(json.nextCursor));",
+              "}"
             ]
           }
         }
@@ -1276,17 +1272,7 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/v1/sync?since={{cursorAfterCreate}}&limit=100",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "sync"
-          ]
-        }
+        "url": "{{baseUrl}}/api/v1/sync?since={{cursorAfterCreate}}&limit=100"
       }
     },
     {
@@ -1566,9 +1552,18 @@
             "exec": [
               "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
               "const json = pm.response.json();",
-              "const record = json.records.find(r => r.recordId === pm.collectionVariables.get('recordId'));",
-              "pm.test('Tombstone komt via sync terug', () => { pm.expect(record).to.be.an('object'); pm.expect(record.revision).to.eql(3); pm.expect(record.deleted).to.eql(true); pm.expect(record.ciphertext).to.eql(null); pm.expect(record.nonce).to.eql(null); });",
-              "pm.collectionVariables.set('cursor', String(json.nextCursor));"
+              "const records = Array.isArray(json.records) ? json.records : [];",
+              "const record = records.find(r => r.recordId === pm.collectionVariables.get('recordId'));",
+              "pm.test('Tombstone komt via sync terug', () => {",
+              "    pm.expect(record).to.be.an('object');",
+              "    pm.expect(record.revision).to.eql(3);",
+              "    pm.expect(record.deleted).to.eql(true);",
+              "    pm.expect(record.ciphertext).to.eql(null);",
+              "    pm.expect(record.nonce).to.eql(null);",
+              "});",
+              "if (pm.response.code === 200 && json.nextCursor !== undefined) {",
+              "    pm.collectionVariables.set('cursor', String(json.nextCursor));",
+              "}"
             ]
           }
         }
@@ -1576,17 +1571,7 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/v1/sync?since={{cursor}}&limit=100",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "v1",
-            "sync"
-          ]
-        }
+        "url": "{{baseUrl}}/api/v1/sync?since={{cursor}}&limit=100"
       }
     },
     {
