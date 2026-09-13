@@ -163,6 +163,7 @@ php tools/test-client.php create
 php tools/test-client.php me
 php tools/test-client.php devices
 php tools/test-client.php add-record
+php tools/test-client.php conflict
 php tools/test-client.php sync
 php tools/test-client.php delete-vault
 ```
