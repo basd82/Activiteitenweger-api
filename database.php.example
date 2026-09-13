@@ -1,5 +1,9 @@
 <?php
+
+// Kopieer dit bestand naar database.php en vul daar de echte gegevens in.
+// database.php staat in .gitignore en mag niet worden gecommit.
+
 $dbserver = 'localhost';
 $dbuser = 'activiteitenweger';
-$dbww = 'geheim1234!';
+$dbww = 'VUL_HIER_EEN_STERK_WACHTWOORD_IN';
 $db = 'activiteitenweger';
