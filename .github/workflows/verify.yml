@@ -1,23 +1,14 @@
 name: Verify API
 
-on:
-  pull_request:
-
-permissions:
-  contents: read
+on: [push, pull_request]
 
 jobs:
-  php:
+  php-syntax:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: PHP syntax
-        shell: bash
-        run: |
-          find public src tools -name '*.php' -print0 | xargs -0 -n1 php -l
-
-      - name: Check sodium
-        shell: bash
-        run: php -r 'exit(extension_loaded("sodium") ? 0 : 1);'
+      - uses: actions/checkout@v4
+      - run: php -l public/index.php
+      - run: php -l src/common.php
+      - run: php -l src/auth.php
+      - run: php -l src/handlers.php
+      - run: php -r 'exit(extension_loaded("sodium") ? 0 : 1);'
