@@ -598,13 +598,12 @@ function aw_handle_claim_pairing(string $rawBody): never
 {
     $data = aw_decode_json_object($rawBody);
 
-    $inviteId = aw_required_string($data, 'inviteId');
     $deviceId = aw_required_string($data, 'deviceId');
-    if (!aw_valid_uuid($inviteId) || !aw_valid_uuid($deviceId)) {
-        aw_json_response(400, ['error' => 'invalid_identifier']);
+    if (!aw_valid_uuid($deviceId)) {
+        aw_json_response(400, ['error' => 'invalid_device_id']);
     }
 
-    $pairingSecret = aw_decode_binary_field($data, 'pairingSecret', 32);
+    $pairingSecret = aw_decode_binary_field($data, 'pairingSecret', 16);
     $authPublicKey = aw_decode_binary_field($data, 'authPublicKey', 32);
     $encryptionPublicKey = aw_decode_binary_field($data, 'encryptionPublicKey', 32);
     $secretHash = hash('sha256', $pairingSecret, true);
@@ -618,10 +617,10 @@ function aw_handle_claim_pairing(string $rawBody): never
                     key_package_ciphertext, key_package_nonce, key_epoch,
                     expires_at
                FROM pairing_invites
-              WHERE invite_id = ?
+              WHERE pairing_secret_hash = ?
               FOR UPDATE"
         );
-        $stmt->bind_param('s', $inviteId);
+        $stmt->bind_param('s', $secretHash);
         $stmt->execute();
         $invite = $stmt->get_result()->fetch_assoc();
         $stmt->close();
@@ -642,16 +641,11 @@ function aw_handle_claim_pairing(string $rawBody): never
         $stmt->close();
         if ($expired) {
             $stmt = $db->prepare("UPDATE pairing_invites SET status = 'EXPIRED' WHERE invite_id = ?");
-            $stmt->bind_param('s', $inviteId);
+            $stmt->bind_param('s', $invite['invite_id']);
             $stmt->execute();
             $stmt->close();
             $db->commit();
             aw_json_response(410, ['error' => 'pairing_invite_expired']);
-        }
-
-        if (!is_string($invite['pairing_secret_hash']) || !hash_equals($invite['pairing_secret_hash'], $secretHash)) {
-            $db->rollback();
-            aw_json_response(401, ['error' => 'invalid_pairing_secret']);
         }
 
         $stmt = $db->prepare(
@@ -716,7 +710,7 @@ function aw_handle_claim_pairing(string $rawBody): never
                     claimed_by_device_id = ?
               WHERE invite_id = ?"
         );
-        $stmt->bind_param('ss', $deviceId, $inviteId);
+        $stmt->bind_param('ss', $deviceId, $invite['invite_id']);
         $stmt->execute();
         $stmt->close();
 
