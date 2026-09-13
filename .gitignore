@@ -1,1 +1,41 @@
-database.php
+# Local database configuration / secrets
+/database.php
+.env
+.env.*
+!.env.example
+
+# Test client state contains private keys and VaultKey
+/tools/test-state.json
+
+# Private keys, certificates and keystores
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Backups / patch remains
+*.bak
+*.bak-*
+*.orig
+*.rej
+*~
+
+# Database dumps (keep sql/install.sql and migrations tracked)
+*.sql.gz
+*.sql.bz2
+*.sql.xz
+*.dump
+*.dump.gz
+
+# Logs / temporary files
+*.log
+*.tmp
+*.swp
+
+# IDE / OS metadata
+.idea/
+.vscode/
+*.iml
+.DS_Store
