@@ -170,6 +170,8 @@ php tools/test-client.php delete-vault
 
 Let op: test-state kan private testkeys bevatten. Bewaar dit niet in Git en laat het niet achter op een publiek toegankelijke locatie.
 
+Voor een tweede onafhankelijke integratietest kan de stateful Postman-suite uit `docs/postman/` worden uitgevoerd. Deze controleert onder andere serverversie, signed requests, revision-conflicts, incrementele cursorsync en tombstones.
+
 ## Logging
 
 De API stuurt onverwachte fouten naar PHP `error_log`.
