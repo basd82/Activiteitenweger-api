@@ -37,6 +37,30 @@ try {
         aw_handle_devices($auth);
     }
 
+    if ($method === 'POST' && $path === '/api/v1/pairing/invites') {
+        $auth = aw_require_auth($rawBody);
+        aw_handle_create_pairing_invite($auth, $rawBody);
+    }
+
+    if ($method === 'POST' && $path === '/api/v1/pairing/claim') {
+        aw_handle_claim_pairing($rawBody);
+    }
+
+    if ($method === 'DELETE' && preg_match('#^/api/v1/pairing/invites/([0-9a-f-]{36})$#i', $path, $m) === 1) {
+        $auth = aw_require_auth($rawBody);
+        aw_handle_revoke_pairing_invite($auth, strtolower($m[1]));
+    }
+
+    if ($method === 'DELETE' && preg_match('#^/api/v1/devices/([0-9a-f-]{36})$#i', $path, $m) === 1) {
+        $auth = aw_require_auth($rawBody);
+        aw_handle_revoke_device($auth, strtolower($m[1]));
+    }
+
+    if ($method === 'DELETE' && $path === '/api/v1/me/access') {
+        $auth = aw_require_auth($rawBody);
+        aw_handle_self_revoke($auth);
+    }
+
     if ($method === 'POST' && $path === '/api/v1/records') {
         $auth = aw_require_auth($rawBody);
         aw_handle_upsert_record($auth, $rawBody);
