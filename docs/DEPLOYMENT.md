@@ -146,7 +146,7 @@ Verwacht:
   "status": "ok",
   "database": "ok",
   "apiVersion": 1,
-  "serverVersion": "1.1.0"
+  "serverVersion": "1.2.0"
 }
 ```
 
@@ -244,3 +244,8 @@ Bij een code-only release:
 4. controleer health + smoke test.
 
 Bij een schemawijziging moet vóór deployment expliciet een rollback/forward-fix plan worden opgesteld. Verwijder of verander geen encrypted productiegegevens zonder gecontroleerde migratie.
+
+
+## Pairing-release 1.2.0
+
+Server 1.2.0 vereist database schema versie 2. Bestaande installaties voeren vóór het activeren van de nieuwe code `sql/migrations/002_global_devices_pairing.sql` uit. Zie `UPDATE.md`.

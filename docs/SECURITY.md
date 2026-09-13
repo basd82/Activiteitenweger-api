@@ -12,7 +12,7 @@ De client is verantwoordelijk voor:
 - genereren en bewaren van private X25519 encryption keys;
 - genereren en bewaren van de VaultKey;
 - versleutelen en ontsleutelen van recordinhoud;
-- controleren van gedeelde toegang zodra pairing is geïmplementeerd.
+- controleren van gedeelde toegang en lokaal ontsleutelen van pairing-keypackages.
 
 De server bewaart:
 
@@ -111,6 +111,10 @@ Huidige endpointrechten:
 | create vault | openbaar |
 | me | R/RW |
 | devices | RW |
+| pairing invite maken/intrekken | owner + RW |
+| pairing claim | pairing secret |
+| device revoke | owner + RW |
+| self-revoke | non-owner R/RW |
 | records | RW |
 | sync | R/RW |
 | delete vault | owner + RW |
@@ -148,20 +152,16 @@ Dit moet in de uiteindelijke privacydocumentatie van de app expliciet worden mee
 
 De volgende onderdelen zijn bewust nog niet als af beschouwd:
 
-- rate limiting op `POST /api/v1/vaults`;
-- pairing-protocol en uitnodigingen;
-- multi-vault device grants;
-- revoke van één vault-device relatie;
-- key rotation na revoke;
+- rate limiting op `POST /api/v1/vaults` en `POST /api/v1/pairing/claim`;
+- automatische key rotation na revoke;
 - audit/access-events;
 - notificatie van revoke;
-- opschoning/expiry van pairing invites;
-- formele API-versie- en migratiestrategie;
+- periodieke opschoning van verlopen pairing invites;
 - productie-hardening en security review.
 
-## Geplande revoke-eigenschappen
+## Revoke en geplande key rotation
 
-Bij de geplande many-to-many devicearchitectuur moet revoke op **vault-device niveau** plaatsvinden. Het globaal blokkeren van een device mag niet automatisch de toegang tot alle andere cliëntvaults intrekken.
+Revoke vindt vanaf schema 2 op **vault-device niveau** plaats. Het globaal blokkeren van een device trekt daardoor niet automatisch toegang tot andere vaults in.
 
 Bij sterke revoke:
 

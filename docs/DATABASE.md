@@ -2,7 +2,7 @@
 
 ## Huidig schema
 
-Database schema version: **1**
+Database schema version: **2**
 
 Het actuele installatieschema staat in `sql/install.sql`.
 
@@ -10,6 +10,7 @@ Tabellen:
 
 - `vaults`
 - `devices`
+- `vault_devices`
 - `key_epochs`
 - `device_key_envelopes`
 - `pairing_invites`
@@ -22,18 +23,18 @@ Alle applicatietijden worden als UTC behandeld.
 ## Relaties
 
 ```text
+devices
+ ├── vault_devices ── vaults
+ └── request_nonces
+
 vaults
- ├── devices
- │    └── request_nonces
  ├── key_epochs
  │    └── device_key_envelopes
  ├── pairing_invites
  ├── records
  │    └── sync_events
- └── device_key_envelopes
+ └── vault_devices
 ```
-
-Belangrijk: dit beschrijft het **huidige** schema. Voor echte multi-client pairing wordt het device-model aangepast; zie "Geplande migratie".
 
 ## vaults
 
@@ -53,7 +54,7 @@ Een vault is de cryptografische en synchronisatie-eenheid.
 
 ## devices
 
-Huidige primaire sleutel:
+Primaire sleutel:
 
 ```text
 device_id CHAR(36)
@@ -61,22 +62,14 @@ device_id CHAR(36)
 
 Belangrijkste velden:
 
-- `vault_id`
-- `access_mode`: `R` of `RW`
-- `is_owner`
-- `status`: `ACTIVE` of `REVOKED`
-- `auth_public_key` — Ed25519
-- `encryption_public_key` — X25519
-- encrypted label-velden
-- `created_at`
-- `last_seen_at`
-- `revoked_at`
+- `status`: globale device-identiteitsstatus;
+- `auth_public_key` — Ed25519;
+- `encryption_public_key` — X25519;
+- encrypted label-velden;
+- `created_at`;
+- `last_seen_at`.
 
-### Huidige beperking
-
-Een device hoort nu rechtstreeks bij precies één vault. Dat is voldoende voor de eerste geauthenticeerde sync-laag, maar niet voor een behandelaar die vanaf één apparaat meerdere cliëntvaults moet kunnen openen.
-
-Daarom wordt dit model vóór pairing vervangen.
+Vaultspecifieke rechten staan niet in deze tabel maar in `vault_devices`.
 
 ## key_epochs
 
@@ -212,7 +205,8 @@ De huidige foreign keys zijn zo ingericht dat volledige vaultverwijdering werkt.
 
 Belangrijkste regels:
 
-- `devices.vault_id -> vaults`: CASCADE
+- `vault_devices.vault_id -> vaults`: CASCADE
+- `vault_devices.device_id -> devices`: CASCADE
 - `key_epochs.vault_id -> vaults`: CASCADE
 - `device_key_envelopes.device_id -> devices`: CASCADE
 - `device_key_envelopes.(vault_id, epoch) -> key_epochs`: CASCADE
@@ -225,13 +219,9 @@ Belangrijkste regels:
 - `sync_events.record_id -> records`: CASCADE
 - `request_nonces.device_id -> devices`: CASCADE
 
-## Geplande device-migratie
+## Global device- en grantmodel
 
-Voor multi-client gebruik wordt het huidige device-model vervangen door:
-
-### devices
-
-Globale device-identiteit:
+Vanaf schema versie 2 is `devices` globaal. Cryptografische identiteit staat één keer per device:
 
 ```text
 device_id
@@ -242,11 +232,7 @@ created_at
 last_seen_at
 ```
 
-Geen `vault_id`, `access_mode` of ownerstatus meer op het globale device.
-
-### vault_devices
-
-Many-to-many grant:
+Per-vault toegang staat in `vault_devices`:
 
 ```text
 vault_id
@@ -259,31 +245,17 @@ revoked_at
 revoked_by
 ```
 
-Verwachte composite key:
+Composite primary key:
 
 ```text
 (vault_id, device_id)
 ```
 
-Hiermee kan:
+Hiermee kan één device meerdere vaults openen en kan een vault meerdere devices R/RW-toegang geven.
 
-- één cliëntvault meerdere devices hebben;
-- één behandelaar-device meerdere cliëntvaults openen;
-- revoke per cliëntrelatie plaatsvinden;
-- self-revoke één vault loskoppelen zonder andere vaults te beïnvloeden.
+## Pairing
 
-### Gevolgen voor andere tabellen
-
-Na deze migratie moeten in elk geval worden herzien:
-
-- request-auth lookup;
-- `device_key_envelopes`;
-- pairing;
-- devices endpoint;
-- revoke;
-- ownercontrole;
-- audit events;
-- key rotation.
+`pairing_invites.pairing_secret_hash` bevat alleen SHA-256 van het 16-byte pairing secret. Het E2E-versleutelde key package blijft in `key_package_ciphertext` + nonce. Het secret zelf staat niet op de server.
 
 ## Installatie versus migraties
 
@@ -299,7 +271,7 @@ sql/migrations/
   003_pairing_grants.sql
 ```
 
-Schema versie 1 is de huidige baseline uit `sql/install.sql`; daarvoor is geen aparte migratie nodig.
+Schema versie 2 is de huidige baseline uit `sql/install.sql`. Bestaande schema-1 installaties gebruiken `sql/migrations/002_global_devices_pairing.sql`.
 
 Iedere toekomstige schemawijziging moet tegelijk:
 

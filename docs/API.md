@@ -26,12 +26,15 @@ Vereiste headers:
 
 ```text
 X-AW-Device-Id: <device UUID>
+X-AW-Vault-Id: <vault UUID>
 X-AW-Timestamp: <Unix timestamp in seconds>
 X-AW-Nonce: <16 random bytes, Base64URL zonder padding>
 X-AW-Signature: <Ed25519 detached signature, Base64URL zonder padding>
 ```
 
 De timestamp mag maximaal 300 seconden afwijken van de servertijd.
+
+Vanaf server 1.2.0 selecteert `X-AW-Vault-Id` de grant/vaultcontext. Voor backwards compatibility mag de header ontbreken wanneer het device exact één actieve vaultgrant heeft. Bij meerdere actieve grants is de header verplicht en geeft ontbreken `400 vault_context_required`.
 
 De exacte bytes die worden ondertekend zijn UTF-8:
 
@@ -107,14 +110,14 @@ Succes:
   "status": "ok",
   "database": "ok",
   "apiVersion": 1,
-  "serverVersion": "1.1.0"
+  "serverVersion": "1.2.0"
 }
 ```
 
 Alle JSON-responses bevatten daarnaast de HTTP-header:
 
 ```text
-X-AW-Server-Version: 1.1.0
+X-AW-Server-Version: 1.2.0
 ```
 
 `apiVersion` is de protocol-major en blijft `1` zolang `/api/v1` backwards-compatible blijft. `serverVersion` is de semantische softwareversie van de server en mag dus binnen API v1 oplopen.
@@ -375,7 +378,7 @@ Succes:
 }
 ```
 
-Door de foreign-key cascades worden bij volledige vaultverwijdering de bijbehorende records, sync-events, key epochs, envelopes, pairing-invites, devices en request-nonces verwijderd.
+Door de foreign-key cascades worden vaultgebonden records, sync-events, key epochs, envelopes, pairing-invites en vault-device grants verwijderd. Globale device-identiteiten blijven bestaan wanneer ze nog aan een andere vault gekoppeld zijn; volledig verweesde device-identiteiten worden daarna opgeruimd.
 
 ## HTTP-statuscodes
 
@@ -394,6 +397,61 @@ Veelgebruikte statuscodes:
 | `500` | interne/databasefout |
 | `503` | healthcheck: database niet beschikbaar |
 
-## Bekende v1-beperking
+## Pairing
 
-In het huidige schema hoort één device bij precies één vault. De geplande pairing-architectuur vereist globale devices plus een many-to-many `vault_devices`-tabel. Pairing/revoke endpoints worden daarom pas toegevoegd nadat die migratie is uitgevoerd.
+### POST /pairing/invites
+
+Signed **owner/RW**. De owner-app genereert lokaal een willekeurig pairing secret van 16 bytes en versleutelt een key package lokaal. De server ontvangt de VaultKey nooit.
+
+Request:
+
+```json
+{
+  "inviteId": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+  "access": "R",
+  "pairingSecretHash": "<32-byte SHA-256>",
+  "keyPackageCiphertext": "<E2E encrypted package>",
+  "keyPackageNonce": "<24-byte nonce>",
+  "expiresInSeconds": 600
+}
+```
+
+`access` is `R` of `RW`. De expiry moet 60–3600 seconden zijn.
+
+### POST /pairing/claim
+
+Openbaar, maar vereist bezit van het 128-bit pairing secret.
+
+```json
+{
+  "pairingSecret": "<16 random bytes>",
+  "deviceId": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+  "authPublicKey": "<32-byte Ed25519 public key>",
+  "encryptionPublicKey": "<32-byte X25519 public key>"
+}
+```
+
+Succes geeft de grant en het versleutelde key package terug. De nieuwe app decrypt dit lokaal met het pairing secret.
+
+### DELETE /pairing/invites/{inviteId}
+
+Signed **owner/RW**. Trekt een nog niet gebruikte invite in.
+
+### DELETE /devices/{deviceId}
+
+Signed **owner/RW**. Trekt de grant van een niet-owner device voor de huidige vault in.
+
+### DELETE /me/access
+
+Signed R/RW. Een niet-owner device trekt zijn eigen grant voor de huidige vault in.
+
+## Multi-device model
+
+`devices` bevat vanaf schema 2 alleen globale cryptografische device-identiteit. Toegang staat in `vault_devices` met per vault:
+
+- `access_mode`: R/RW;
+- `is_owner`;
+- `status`: ACTIVE/REVOKED;
+- revoke-auditvelden.
+
+Een R-device kan `/sync` lezen maar `POST /records` geeft `403 write_access_required`.

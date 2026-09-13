@@ -276,7 +276,7 @@ Verwachte response:
   "status": "ok",
   "database": "ok",
   "apiVersion": 1,
-  "serverVersion": "1.1.0"
+  "serverVersion": "1.2.0"
 }
 ```
 
@@ -375,7 +375,7 @@ git pull --ff-only
 
 Controleer daarna `CHANGELOG.md` en `sql/migrations/` op databasepatches die bij de nieuwe release horen, voer de PHP syntaxcheck uit en controleer `/api/v1/health`.
 
-Server 1.1.0 bevat geen database-schemawijziging en vereist geen SQL-migratie.
+Voor server 1.2.0 gebruikt een verse installatie schema versie 2. Bestaande schema-1 installaties moeten migratie `sql/migrations/002_global_devices_pairing.sql` uitvoeren volgens `UPDATE.md`.
 
 ## 13. Niet in Git zetten
 

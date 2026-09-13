@@ -1,5 +1,20 @@
 # Roadmap
 
+## Server 1.2.0 — pairingbasis
+
+Geïmplementeerd:
+- globale devices;
+- many-to-many vault grants;
+- R/RW;
+- pairing invites/claim;
+- device revoke en self-revoke;
+- multi-vault requestcontext.
+
+Nog te bouwen na deze fase:
+- key rotation na revoke voor forward secrecy;
+- audit/access events;
+- generieke pushmeldingen.
+
 Deze roadmap beschrijft de API-kant van Activiteitenweger.
 
 ## Fase 1 — Basis sync-laag
@@ -26,7 +41,7 @@ Status: **gereed**
 
 ## Fase 2 — Schema geschikt maken voor multi-client gebruik
 
-Status: **volgende grote backendstap**
+Status: **gereed in server 1.2.0**
 
 Doel: één fysiek/logisch device moet toegang kunnen hebben tot meerdere vaults.
 
@@ -60,7 +75,7 @@ Daarna worden authentication en autorisatie gebaseerd op de combinatie van devic
 
 ## Fase 3 — Pairing
 
-Status: **gepland**
+Status: **gereed in server 1.2.0**
 
 Functionaliteit:
 
@@ -79,7 +94,7 @@ De server fungeert alleen als relay/opslag voor versleuteld sleutelmaterial.
 
 ## Fase 4 — Revoke
 
-Status: **gepland**
+Status: **gereed in server 1.2.0**
 
 Ondersteunen:
 
@@ -164,7 +179,7 @@ Voor productie/stabiele releases:
 
 - semantische serverversie naast de API-major — actief;
 - changelog — actief;
-- genummerde SQL-migraties — structuur actief, eerste schemawijziging volgt bij noodzaak;
+- genummerde SQL-migraties — actief; schema 1 → 2 is migratie 002;
 - compatibility matrix app ↔ API;
 - backwards-compatible API-evolutie binnen `/api/v1`;
 - alleen breaking wijziging via nieuwe API major.

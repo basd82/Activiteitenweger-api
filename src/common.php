@@ -6,7 +6,7 @@
 declare(strict_types=1);
 
 const AW_API_VERSION = 1;
-const AW_SERVER_VERSION = '1.1.0';
+const AW_SERVER_VERSION = '1.2.0';
 const AW_MAX_JSON_BYTES = 524288; // 512 KiB
 
 function aw_json_response(int $status, array $data): never

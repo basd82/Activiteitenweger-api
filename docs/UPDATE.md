@@ -75,7 +75,7 @@ mysql activiteitenweger < sql/migrations/002_voorbeeld.sql
 
 Lees vóór uitvoering altijd de header/opmerkingen van de migratie en de betreffende release in `CHANGELOG.md`.
 
-**Server 1.1.0 bevat geen database-schemawijziging en vereist dus geen SQL-migratie.**
+**Server 1.2.0 gebruikt database schema 2.** Voor een bestaande schema-1 installatie is migratie `002_global_devices_pairing.sql` vereist.
 
 ## 3. PHP syntax controleren
 
@@ -104,10 +104,10 @@ Voer dit alleen uit met de servicenaam die daadwerkelijk op de server bestaat.
 curl -i -fsS https://app.dikkenberg.net/api/v1/health
 ```
 
-Voor server 1.1.0 moet onder andere zichtbaar zijn:
+Voor server 1.2.0 moet onder andere zichtbaar zijn:
 
 ```text
-X-AW-Server-Version: 1.1.0
+X-AW-Server-Version: 1.2.0
 ```
 
 met body:
@@ -117,7 +117,7 @@ met body:
   "status": "ok",
   "database": "ok",
   "apiVersion": 1,
-  "serverVersion": "1.1.0"
+  "serverVersion": "1.2.0"
 }
 ```
 
@@ -172,3 +172,33 @@ Voor de stap van de oorspronkelijke v1-server naar 1.1.0:
 7. smoke-test uitvoeren.
 
 De database blijft schema versie 1.
+
+
+## Release 1.2.0 — pairing en multi-device
+
+Deze release bevat **database schema version 2** en vereist op bestaande schema-1 installaties:
+
+```bash
+cd /var/www/activiteitenweger
+
+# Maak eerst een databasebackup en stop/paueer API-writes.
+mysql activiteitenweger < sql/migrations/002_global_devices_pairing.sql
+```
+
+Daarna code bijwerken, PHP syntax controleren en PHP-FPM reloaden volgens de algemene procedure hierboven.
+
+Controle:
+
+```bash
+curl -i -fsS https://app.dikkenberg.net/api/v1/health
+```
+
+Moet `serverVersion: 1.2.0` tonen.
+
+De migratie:
+- maakt `vault_devices`;
+- migreert bestaande device->vault grants;
+- maakt `devices` globaal;
+- voegt pairing-secret hashes en revoke-audit toe.
+
+Voer de SQL-patch **één keer** uit en alleen na backup.

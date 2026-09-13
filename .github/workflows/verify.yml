@@ -1,0 +1,55 @@
+name: Verify
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  php-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: PHP syntax
+        run: |
+          php -l public/index.php
+          php -l src/common.php
+          php -l src/auth.php
+          php -l src/handlers.php
+      - name: Sodium extension
+        run: |
+          php -r "exit(extension_loaded('sodium') ? 0 : 1);"
+
+  mysql-schema:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install MySQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y default-mysql-client
+      - name: Validate fresh schema 2
+        run: |
+          mysql -h127.0.0.1 -uroot -proot -e "CREATE DATABASE aw_fresh CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci"
+          mysql -h127.0.0.1 -uroot -proot aw_fresh < sql/install.sql
+          mysql -h127.0.0.1 -uroot -proot aw_fresh -e "SHOW TABLES"
+      - name: Validate schema 1 to 2 migration
+        run: |
+          git show origin/main:sql/install.sql > /tmp/install-schema1.sql
+          mysql -h127.0.0.1 -uroot -proot -e "CREATE DATABASE aw_migrate CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci"
+          mysql -h127.0.0.1 -uroot -proot aw_migrate < /tmp/install-schema1.sql
+          mysql -h127.0.0.1 -uroot -proot aw_migrate < sql/migrations/002_global_devices_pairing.sql
+          mysql -h127.0.0.1 -uroot -proot aw_migrate -e "SHOW CREATE TABLE vault_devices"

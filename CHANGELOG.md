@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.2.0 — 2026-09-13
+
+### Pairing en multi-device
+- Globale device-identiteiten met many-to-many `vault_devices` grants.
+- Eén device kan toegang hebben tot meerdere vaults.
+- Per-vault R/RW-rechten en ownerstatus.
+- Pairing-invites met een 128-bit lokaal gegenereerd pairing secret.
+- De server bewaart alleen SHA-256 van het pairing secret en een versleuteld key package.
+- Claim-endpoint registreert een nieuw device/grant zonder dat de server de VaultKey ziet.
+- Owner kan een pairing-invite intrekken.
+- Owner kan een niet-owner device per vault intrekken.
+- Niet-owner devices kunnen hun eigen vaulttoegang intrekken.
+- `X-AW-Vault-Id` selecteert de vaultcontext; bestaande single-vault clients blijven backwards-compatible.
+
+### Database
+- Schema versie 2.
+- Migratie: `sql/migrations/002_global_devices_pairing.sql`.
+
+### Beveiliging
+- Pairing secrets zijn 16 random bytes (128 bit) en verlopen na maximaal 1 uur.
+- Claim lookup gebeurt op een unieke SHA-256 hash van het secret.
+- R-grants kunnen synchroniseren maar geen records schrijven.
+
+
 Alle noemenswaardige wijzigingen aan de Activiteitenweger API worden hier bijgehouden.
 
 ## 1.1.0 — 2026-09-13

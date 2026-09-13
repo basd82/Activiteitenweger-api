@@ -1,6 +1,6 @@
 -- SPDX-License-Identifier: GPL-3.0-only
 -- Copyright (C) 2026 Bas van den Dikkenberg
--- Activiteitenweger database schema version: 1
+-- Activiteitenweger database schema version: 2
 
 -- phpMyAdmin SQL Dump
 -- version 5.2.2deb1+deb13u1
@@ -27,9 +27,6 @@ SET time_zone = "+00:00";
 
 CREATE TABLE `devices` (
   `device_id` char(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-  `vault_id` char(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-  `access_mode` enum('R','RW') NOT NULL,
-  `is_owner` tinyint(1) NOT NULL DEFAULT '0',
   `status` enum('ACTIVE','REVOKED') NOT NULL DEFAULT 'ACTIVE',
   `auth_public_key` varbinary(128) NOT NULL,
   `auth_key_algorithm` varchar(32) NOT NULL DEFAULT 'Ed25519',
@@ -38,9 +35,25 @@ CREATE TABLE `devices` (
   `label_ciphertext` mediumblob,
   `label_nonce` varbinary(32) DEFAULT NULL,
   `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-  `last_seen_at` datetime(6) DEFAULT NULL,
-  `revoked_at` datetime(6) DEFAULT NULL
+  `last_seen_at` datetime(6) DEFAULT NULL
 ) ;
+
+-- --------------------------------------------------------
+
+--
+-- Tabelstructuur voor tabel `vault_devices`
+--
+
+CREATE TABLE `vault_devices` (
+  `vault_id` char(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `device_id` char(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `access_mode` enum('R','RW') NOT NULL,
+  `is_owner` tinyint(1) NOT NULL DEFAULT '0',
+  `status` enum('ACTIVE','REVOKED') NOT NULL DEFAULT 'ACTIVE',
+  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  `revoked_at` datetime(6) DEFAULT NULL,
+  `revoked_by` char(36) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
 
@@ -80,11 +93,12 @@ CREATE TABLE `key_epochs` (
 
 CREATE TABLE `pairing_invites` (
   `invite_id` char(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `pairing_secret_hash` binary(32) DEFAULT NULL,
   `vault_id` char(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   `created_by_device_id` char(36) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL,
   `access_mode` enum('R','RW') NOT NULL,
   `status` enum('PENDING','CLAIMED','REVOKED','EXPIRED') NOT NULL DEFAULT 'PENDING',
-  `invite_public_key` varbinary(128) NOT NULL,
+  `invite_public_key` varbinary(128) DEFAULT NULL,
   `key_package_ciphertext` mediumblob NOT NULL,
   `key_package_nonce` varbinary(32) DEFAULT NULL,
   `key_epoch` int UNSIGNED NOT NULL,
@@ -92,6 +106,7 @@ CREATE TABLE `pairing_invites` (
   `expires_at` datetime(6) NOT NULL,
   `claimed_at` datetime(6) DEFAULT NULL,
   `claimed_by_device_id` char(36) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL,
+  `revoked_by` char(36) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL,
   `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -165,9 +180,16 @@ CREATE TABLE `vaults` (
 -- Indexen voor tabel `devices`
 --
 ALTER TABLE `devices`
-  ADD PRIMARY KEY (`device_id`),
-  ADD KEY `idx_devices_vault` (`vault_id`),
-  ADD KEY `idx_devices_vault_status` (`vault_id`,`status`);
+  ADD PRIMARY KEY (`device_id`);
+
+--
+-- Indexen voor tabel `vault_devices`
+--
+ALTER TABLE `vault_devices`
+  ADD PRIMARY KEY (`vault_id`,`device_id`),
+  ADD KEY `idx_vault_devices_device` (`device_id`),
+  ADD KEY `idx_vault_devices_vault_status` (`vault_id`,`status`),
+  ADD KEY `idx_vault_devices_revoked_by` (`revoked_by`);
 
 --
 -- Indexen voor tabel `device_key_envelopes`
@@ -191,7 +213,9 @@ ALTER TABLE `pairing_invites`
   ADD KEY `idx_pairing_vault_status` (`vault_id`,`status`,`expires_at`),
   ADD KEY `fk_pairing_creator` (`created_by_device_id`),
   ADD KEY `fk_pairing_claimed_device` (`claimed_by_device_id`),
-  ADD KEY `fk_pairing_epoch` (`vault_id`,`key_epoch`);
+  ADD KEY `fk_pairing_epoch` (`vault_id`,`key_epoch`),
+  ADD UNIQUE KEY `uq_pairing_secret_hash` (`pairing_secret_hash`),
+  ADD KEY `fk_pairing_revoked_by` (`revoked_by`);
 
 --
 -- Indexen voor tabel `records`
@@ -241,10 +265,12 @@ ALTER TABLE `sync_events`
 --
 
 --
--- Beperkingen voor tabel `devices`
+-- Beperkingen voor tabel `vault_devices`
 --
-ALTER TABLE `devices`
-  ADD CONSTRAINT `fk_devices_vault` FOREIGN KEY (`vault_id`) REFERENCES `vaults` (`vault_id`) ON DELETE CASCADE;
+ALTER TABLE `vault_devices`
+  ADD CONSTRAINT `fk_vault_devices_vault` FOREIGN KEY (`vault_id`) REFERENCES `vaults` (`vault_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_vault_devices_device` FOREIGN KEY (`device_id`) REFERENCES `devices` (`device_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_vault_devices_revoked_by` FOREIGN KEY (`revoked_by`) REFERENCES `devices` (`device_id`) ON DELETE SET NULL;
 
 --
 -- Beperkingen voor tabel `device_key_envelopes`
@@ -267,6 +293,7 @@ ALTER TABLE `pairing_invites`
   ADD CONSTRAINT `fk_pairing_claimed_device` FOREIGN KEY (`claimed_by_device_id`) REFERENCES `devices` (`device_id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_pairing_creator` FOREIGN KEY (`created_by_device_id`) REFERENCES `devices` (`device_id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_pairing_epoch` FOREIGN KEY (`vault_id`,`key_epoch`) REFERENCES `key_epochs` (`vault_id`, `epoch`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_pairing_revoked_by` FOREIGN KEY (`revoked_by`) REFERENCES `devices` (`device_id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_pairing_vault` FOREIGN KEY (`vault_id`) REFERENCES `vaults` (`vault_id`) ON DELETE CASCADE;
 
 --

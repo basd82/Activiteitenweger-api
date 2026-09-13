@@ -1,0 +1,743 @@
+{
+  "info": {
+    "name": "Activiteitenweger API v1 - Pairing / Server 1.2.0",
+    "description": "Stateful pairing integration suite. Uses native Web Crypto only; no external npm packages.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://app.dikkenberg.net",
+      "type": "string"
+    },
+    {
+      "key": "serverVersion",
+      "value": "1.2.0",
+      "type": "string"
+    },
+    {
+      "key": "vaultId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ownerDeviceId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ownerPublicKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "ownerPrivateKeyPkcs8",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "rDeviceId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "rPublicKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "rPrivateKeyPkcs8",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "rwDeviceId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "rwPublicKey",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "rwPrivateKeyPkcs8",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "rSecret",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "rwSecret",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test('Server version header is 1.2.0', () => pm.expect(pm.response.headers.get('X-AW-Server-Version')).to.eql(pm.collectionVariables.get('serverVersion')));"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/health"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              "const j=pm.response.json(); pm.test('Server 1.2.0',()=>pm.expect(j.serverVersion).to.eql('1.2.0'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Create owner vault",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/vaults",
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const { Buffer }=require('buffer');",
+              "function b64u(bytes){return Buffer.from(bytes).toString('base64').replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/g,'');}",
+              "function randomBytes(n){const d=new Uint8Array(n);crypto.getRandomValues(d);return d;}",
+              "const kp=await crypto.subtle.generateKey({name:'Ed25519'},true,['sign','verify']);",
+              "const pub=new Uint8Array(await crypto.subtle.exportKey('raw',kp.publicKey));",
+              "const priv=new Uint8Array(await crypto.subtle.exportKey('pkcs8',kp.privateKey));",
+              "const vaultId=pm.variables.replaceIn('{{$guid}}'); const deviceId=pm.variables.replaceIn('{{$guid}}');",
+              "pm.collectionVariables.set('vaultId',vaultId); pm.collectionVariables.set('ownerDeviceId',deviceId);",
+              "pm.collectionVariables.set('ownerPublicKey',b64u(pub)); pm.collectionVariables.set('ownerPrivateKeyPkcs8',b64u(priv));",
+              "const body=JSON.stringify({vaultId,deviceId,authPublicKey:b64u(pub),encryptionPublicKey:b64u(randomBytes(32)),keyEpoch:1,keyEnvelope:b64u(randomBytes(80)),keyEnvelopeNonce:null});",
+              "pm.request.body.update(body);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201',()=>pm.response.to.have.status(201));",
+              "const j=pm.response.json(); pm.test('Owner RW',()=>{pm.expect(j.owner).to.eql(true);pm.expect(j.access).to.eql('RW');});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Create R invite",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/pairing/invites",
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const { Buffer } = require('buffer');",
+              "function b64u(bytes) { return Buffer.from(bytes).toString('base64').replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/g,''); }",
+              "function unb64u(value) { const padding='='.repeat((4-(value.length%4))%4); return new Uint8Array(Buffer.from(value.replace(/-/g,'+').replace(/_/g,'/')+padding,'base64')); }",
+              "function randomBytes(length) { const data=new Uint8Array(length); crypto.getRandomValues(data); return data; }",
+              "async function sha256bytes(input) { const bytes=input instanceof Uint8Array ? input : new Uint8Array(Buffer.from(String(input),'utf8')); return new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)); }",
+              "async function sha256hex(input) { return Buffer.from(await sha256bytes(input)).toString('hex'); }",
+              "async function loadSigningKey(role) { return await crypto.subtle.importKey('pkcs8', unb64u(pm.collectionVariables.get(role+'PrivateKeyPkcs8')), {name:'Ed25519'}, false, ['sign']); }",
+              "async function signRequest(role, uri, body='') {",
+              "  const timestamp=Math.floor(Date.now()/1000).toString();",
+              "  const nonce=b64u(randomBytes(16));",
+              "  const canonical=['AW-REQUEST-V1',pm.request.method.toUpperCase(),uri,timestamp,nonce,await sha256hex(body)].join('\\n');",
+              "  const key=await loadSigningKey(role);",
+              "  const sig=new Uint8Array(await crypto.subtle.sign({name:'Ed25519'},key,new Uint8Array(Buffer.from(canonical,'utf8'))));",
+              "  pm.request.headers.upsert({key:'X-AW-Device-Id',value:pm.collectionVariables.get(role+'DeviceId')});",
+              "  pm.request.headers.upsert({key:'X-AW-Vault-Id',value:pm.collectionVariables.get('vaultId')});",
+              "  pm.request.headers.upsert({key:'X-AW-Timestamp',value:timestamp});",
+              "  pm.request.headers.upsert({key:'X-AW-Nonce',value:nonce});",
+              "  pm.request.headers.upsert({key:'X-AW-Signature',value:b64u(sig)});",
+              "  pm.request.headers.upsert({key:'Accept',value:'application/json'});",
+              "}",
+              "const secret=randomBytes(16); pm.collectionVariables.set('rSecret',b64u(secret));",
+              "const prefix=new Uint8Array(Buffer.from('AW-PAIRING-VERIFY-V1\\n','utf8'));",
+              "const merged=new Uint8Array(prefix.length+secret.length); merged.set(prefix); merged.set(secret,prefix.length);",
+              "const verify=await sha256bytes(merged);",
+              "const inviteId=pm.variables.replaceIn('{{$guid}}');",
+              "const body=JSON.stringify({inviteId,access:'R',pairingSecretHash:b64u(verify),keyPackageCiphertext:b64u(randomBytes(96)),keyPackageNonce:b64u(randomBytes(24)),expiresInSeconds:600});",
+              "pm.request.body.update(body);",
+              "await signRequest('owner','/api/v1/pairing/invites',body);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201',()=>pm.response.to.have.status(201));",
+              "pm.test('R grant invite',()=>pm.expect(pm.response.json().access).to.eql('R'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Claim R invite",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/pairing/claim",
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const { Buffer }=require('buffer');",
+              "function b64u(bytes){return Buffer.from(bytes).toString('base64').replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/g,'');}",
+              "const kp=await crypto.subtle.generateKey({name:'Ed25519'},true,['sign','verify']);",
+              "const pub=new Uint8Array(await crypto.subtle.exportKey('raw',kp.publicKey));",
+              "const priv=new Uint8Array(await crypto.subtle.exportKey('pkcs8',kp.privateKey));",
+              "const deviceId=pm.variables.replaceIn('{{$guid}}');",
+              "pm.collectionVariables.set('rDeviceId',deviceId); pm.collectionVariables.set('rPublicKey',b64u(pub)); pm.collectionVariables.set('rPrivateKeyPkcs8',b64u(priv));",
+              "const body=JSON.stringify({pairingSecret:pm.collectionVariables.get('rSecret'),deviceId,authPublicKey:b64u(pub),encryptionPublicKey:b64u(new Uint8Array(32).map(()=>Math.floor(Math.random()*256))) });",
+              "pm.request.body.update(body);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201',()=>pm.response.to.have.status(201));",
+              "const j=pm.response.json();pm.test('Claim is R',()=>pm.expect(j.access).to.eql('R'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 - R device can read me",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/me"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const { Buffer } = require('buffer');",
+              "function b64u(bytes) { return Buffer.from(bytes).toString('base64').replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/g,''); }",
+              "function unb64u(value) { const padding='='.repeat((4-(value.length%4))%4); return new Uint8Array(Buffer.from(value.replace(/-/g,'+').replace(/_/g,'/')+padding,'base64')); }",
+              "function randomBytes(length) { const data=new Uint8Array(length); crypto.getRandomValues(data); return data; }",
+              "async function sha256bytes(input) { const bytes=input instanceof Uint8Array ? input : new Uint8Array(Buffer.from(String(input),'utf8')); return new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)); }",
+              "async function sha256hex(input) { return Buffer.from(await sha256bytes(input)).toString('hex'); }",
+              "async function loadSigningKey(role) { return await crypto.subtle.importKey('pkcs8', unb64u(pm.collectionVariables.get(role+'PrivateKeyPkcs8')), {name:'Ed25519'}, false, ['sign']); }",
+              "async function signRequest(role, uri, body='') {",
+              "  const timestamp=Math.floor(Date.now()/1000).toString();",
+              "  const nonce=b64u(randomBytes(16));",
+              "  const canonical=['AW-REQUEST-V1',pm.request.method.toUpperCase(),uri,timestamp,nonce,await sha256hex(body)].join('\\n');",
+              "  const key=await loadSigningKey(role);",
+              "  const sig=new Uint8Array(await crypto.subtle.sign({name:'Ed25519'},key,new Uint8Array(Buffer.from(canonical,'utf8'))));",
+              "  pm.request.headers.upsert({key:'X-AW-Device-Id',value:pm.collectionVariables.get(role+'DeviceId')});",
+              "  pm.request.headers.upsert({key:'X-AW-Vault-Id',value:pm.collectionVariables.get('vaultId')});",
+              "  pm.request.headers.upsert({key:'X-AW-Timestamp',value:timestamp});",
+              "  pm.request.headers.upsert({key:'X-AW-Nonce',value:nonce});",
+              "  pm.request.headers.upsert({key:'X-AW-Signature',value:b64u(sig)});",
+              "  pm.request.headers.upsert({key:'Accept',value:'application/json'});",
+              "}",
+              "await signRequest('r','/api/v1/me');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              "pm.test('Access R',()=>pm.expect(pm.response.json().access).to.eql('R'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 - R device cannot write",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/records",
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const { Buffer } = require('buffer');",
+              "function b64u(bytes) { return Buffer.from(bytes).toString('base64').replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/g,''); }",
+              "function unb64u(value) { const padding='='.repeat((4-(value.length%4))%4); return new Uint8Array(Buffer.from(value.replace(/-/g,'+').replace(/_/g,'/')+padding,'base64')); }",
+              "function randomBytes(length) { const data=new Uint8Array(length); crypto.getRandomValues(data); return data; }",
+              "async function sha256bytes(input) { const bytes=input instanceof Uint8Array ? input : new Uint8Array(Buffer.from(String(input),'utf8')); return new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)); }",
+              "async function sha256hex(input) { return Buffer.from(await sha256bytes(input)).toString('hex'); }",
+              "async function loadSigningKey(role) { return await crypto.subtle.importKey('pkcs8', unb64u(pm.collectionVariables.get(role+'PrivateKeyPkcs8')), {name:'Ed25519'}, false, ['sign']); }",
+              "async function signRequest(role, uri, body='') {",
+              "  const timestamp=Math.floor(Date.now()/1000).toString();",
+              "  const nonce=b64u(randomBytes(16));",
+              "  const canonical=['AW-REQUEST-V1',pm.request.method.toUpperCase(),uri,timestamp,nonce,await sha256hex(body)].join('\\n');",
+              "  const key=await loadSigningKey(role);",
+              "  const sig=new Uint8Array(await crypto.subtle.sign({name:'Ed25519'},key,new Uint8Array(Buffer.from(canonical,'utf8'))));",
+              "  pm.request.headers.upsert({key:'X-AW-Device-Id',value:pm.collectionVariables.get(role+'DeviceId')});",
+              "  pm.request.headers.upsert({key:'X-AW-Vault-Id',value:pm.collectionVariables.get('vaultId')});",
+              "  pm.request.headers.upsert({key:'X-AW-Timestamp',value:timestamp});",
+              "  pm.request.headers.upsert({key:'X-AW-Nonce',value:nonce});",
+              "  pm.request.headers.upsert({key:'X-AW-Signature',value:b64u(sig)});",
+              "  pm.request.headers.upsert({key:'Accept',value:'application/json'});",
+              "}",
+              "const body='{}';pm.request.body.update(body);await signRequest('r','/api/v1/records',body);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 403',()=>pm.response.to.have.status(403));",
+              "pm.test('write_access_required',()=>pm.expect(pm.response.json().error).to.eql('write_access_required'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 - Create RW invite",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/pairing/invites",
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const { Buffer } = require('buffer');",
+              "function b64u(bytes) { return Buffer.from(bytes).toString('base64').replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/g,''); }",
+              "function unb64u(value) { const padding='='.repeat((4-(value.length%4))%4); return new Uint8Array(Buffer.from(value.replace(/-/g,'+').replace(/_/g,'/')+padding,'base64')); }",
+              "function randomBytes(length) { const data=new Uint8Array(length); crypto.getRandomValues(data); return data; }",
+              "async function sha256bytes(input) { const bytes=input instanceof Uint8Array ? input : new Uint8Array(Buffer.from(String(input),'utf8')); return new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)); }",
+              "async function sha256hex(input) { return Buffer.from(await sha256bytes(input)).toString('hex'); }",
+              "async function loadSigningKey(role) { return await crypto.subtle.importKey('pkcs8', unb64u(pm.collectionVariables.get(role+'PrivateKeyPkcs8')), {name:'Ed25519'}, false, ['sign']); }",
+              "async function signRequest(role, uri, body='') {",
+              "  const timestamp=Math.floor(Date.now()/1000).toString();",
+              "  const nonce=b64u(randomBytes(16));",
+              "  const canonical=['AW-REQUEST-V1',pm.request.method.toUpperCase(),uri,timestamp,nonce,await sha256hex(body)].join('\\n');",
+              "  const key=await loadSigningKey(role);",
+              "  const sig=new Uint8Array(await crypto.subtle.sign({name:'Ed25519'},key,new Uint8Array(Buffer.from(canonical,'utf8'))));",
+              "  pm.request.headers.upsert({key:'X-AW-Device-Id',value:pm.collectionVariables.get(role+'DeviceId')});",
+              "  pm.request.headers.upsert({key:'X-AW-Vault-Id',value:pm.collectionVariables.get('vaultId')});",
+              "  pm.request.headers.upsert({key:'X-AW-Timestamp',value:timestamp});",
+              "  pm.request.headers.upsert({key:'X-AW-Nonce',value:nonce});",
+              "  pm.request.headers.upsert({key:'X-AW-Signature',value:b64u(sig)});",
+              "  pm.request.headers.upsert({key:'Accept',value:'application/json'});",
+              "}",
+              "const secret=randomBytes(16); pm.collectionVariables.set('rwSecret',b64u(secret));",
+              "const prefix=new Uint8Array(Buffer.from('AW-PAIRING-VERIFY-V1\\n','utf8'));",
+              "const merged=new Uint8Array(prefix.length+secret.length); merged.set(prefix); merged.set(secret,prefix.length);",
+              "const verify=await sha256bytes(merged);",
+              "const inviteId=pm.variables.replaceIn('{{$guid}}');",
+              "const body=JSON.stringify({inviteId,access:'RW',pairingSecretHash:b64u(verify),keyPackageCiphertext:b64u(randomBytes(96)),keyPackageNonce:b64u(randomBytes(24)),expiresInSeconds:600});",
+              "pm.request.body.update(body);",
+              "await signRequest('owner','/api/v1/pairing/invites',body);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201',()=>pm.response.to.have.status(201));",
+              "pm.test('RW grant invite',()=>pm.expect(pm.response.json().access).to.eql('RW'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 - Claim RW invite",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/pairing/claim",
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const { Buffer }=require('buffer');",
+              "function b64u(bytes){return Buffer.from(bytes).toString('base64').replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/g,'');}",
+              "const kp=await crypto.subtle.generateKey({name:'Ed25519'},true,['sign','verify']);",
+              "const pub=new Uint8Array(await crypto.subtle.exportKey('raw',kp.publicKey));",
+              "const priv=new Uint8Array(await crypto.subtle.exportKey('pkcs8',kp.privateKey));",
+              "const deviceId=pm.variables.replaceIn('{{$guid}}');",
+              "pm.collectionVariables.set('rwDeviceId',deviceId); pm.collectionVariables.set('rwPublicKey',b64u(pub)); pm.collectionVariables.set('rwPrivateKeyPkcs8',b64u(priv));",
+              "const body=JSON.stringify({pairingSecret:pm.collectionVariables.get('rwSecret'),deviceId,authPublicKey:b64u(pub),encryptionPublicKey:b64u(new Uint8Array(32).map(()=>Math.floor(Math.random()*256))) });",
+              "pm.request.body.update(body);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201',()=>pm.response.to.have.status(201));",
+              "pm.test('Claim is RW',()=>pm.expect(pm.response.json().access).to.eql('RW'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 - RW device me",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/me"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const { Buffer } = require('buffer');",
+              "function b64u(bytes) { return Buffer.from(bytes).toString('base64').replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/g,''); }",
+              "function unb64u(value) { const padding='='.repeat((4-(value.length%4))%4); return new Uint8Array(Buffer.from(value.replace(/-/g,'+').replace(/_/g,'/')+padding,'base64')); }",
+              "function randomBytes(length) { const data=new Uint8Array(length); crypto.getRandomValues(data); return data; }",
+              "async function sha256bytes(input) { const bytes=input instanceof Uint8Array ? input : new Uint8Array(Buffer.from(String(input),'utf8')); return new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)); }",
+              "async function sha256hex(input) { return Buffer.from(await sha256bytes(input)).toString('hex'); }",
+              "async function loadSigningKey(role) { return await crypto.subtle.importKey('pkcs8', unb64u(pm.collectionVariables.get(role+'PrivateKeyPkcs8')), {name:'Ed25519'}, false, ['sign']); }",
+              "async function signRequest(role, uri, body='') {",
+              "  const timestamp=Math.floor(Date.now()/1000).toString();",
+              "  const nonce=b64u(randomBytes(16));",
+              "  const canonical=['AW-REQUEST-V1',pm.request.method.toUpperCase(),uri,timestamp,nonce,await sha256hex(body)].join('\\n');",
+              "  const key=await loadSigningKey(role);",
+              "  const sig=new Uint8Array(await crypto.subtle.sign({name:'Ed25519'},key,new Uint8Array(Buffer.from(canonical,'utf8'))));",
+              "  pm.request.headers.upsert({key:'X-AW-Device-Id',value:pm.collectionVariables.get(role+'DeviceId')});",
+              "  pm.request.headers.upsert({key:'X-AW-Vault-Id',value:pm.collectionVariables.get('vaultId')});",
+              "  pm.request.headers.upsert({key:'X-AW-Timestamp',value:timestamp});",
+              "  pm.request.headers.upsert({key:'X-AW-Nonce',value:nonce});",
+              "  pm.request.headers.upsert({key:'X-AW-Signature',value:b64u(sig)});",
+              "  pm.request.headers.upsert({key:'Accept',value:'application/json'});",
+              "}",
+              "await signRequest('rw','/api/v1/me');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              "pm.test('Access RW',()=>pm.expect(pm.response.json().access).to.eql('RW'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 - Owner sees devices",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/devices"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const { Buffer } = require('buffer');",
+              "function b64u(bytes) { return Buffer.from(bytes).toString('base64').replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/g,''); }",
+              "function unb64u(value) { const padding='='.repeat((4-(value.length%4))%4); return new Uint8Array(Buffer.from(value.replace(/-/g,'+').replace(/_/g,'/')+padding,'base64')); }",
+              "function randomBytes(length) { const data=new Uint8Array(length); crypto.getRandomValues(data); return data; }",
+              "async function sha256bytes(input) { const bytes=input instanceof Uint8Array ? input : new Uint8Array(Buffer.from(String(input),'utf8')); return new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)); }",
+              "async function sha256hex(input) { return Buffer.from(await sha256bytes(input)).toString('hex'); }",
+              "async function loadSigningKey(role) { return await crypto.subtle.importKey('pkcs8', unb64u(pm.collectionVariables.get(role+'PrivateKeyPkcs8')), {name:'Ed25519'}, false, ['sign']); }",
+              "async function signRequest(role, uri, body='') {",
+              "  const timestamp=Math.floor(Date.now()/1000).toString();",
+              "  const nonce=b64u(randomBytes(16));",
+              "  const canonical=['AW-REQUEST-V1',pm.request.method.toUpperCase(),uri,timestamp,nonce,await sha256hex(body)].join('\\n');",
+              "  const key=await loadSigningKey(role);",
+              "  const sig=new Uint8Array(await crypto.subtle.sign({name:'Ed25519'},key,new Uint8Array(Buffer.from(canonical,'utf8'))));",
+              "  pm.request.headers.upsert({key:'X-AW-Device-Id',value:pm.collectionVariables.get(role+'DeviceId')});",
+              "  pm.request.headers.upsert({key:'X-AW-Vault-Id',value:pm.collectionVariables.get('vaultId')});",
+              "  pm.request.headers.upsert({key:'X-AW-Timestamp',value:timestamp});",
+              "  pm.request.headers.upsert({key:'X-AW-Nonce',value:nonce});",
+              "  pm.request.headers.upsert({key:'X-AW-Signature',value:b64u(sig)});",
+              "  pm.request.headers.upsert({key:'Accept',value:'application/json'});",
+              "}",
+              "await signRequest('owner','/api/v1/devices');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              "const d=pm.response.json().devices;pm.test('Owner + R + RW visible',()=>{pm.expect(d.some(x=>x.deviceId===pm.collectionVariables.get('ownerDeviceId'))).to.eql(true);pm.expect(d.some(x=>x.deviceId===pm.collectionVariables.get('rDeviceId')&&x.access==='R')).to.eql(true);pm.expect(d.some(x=>x.deviceId===pm.collectionVariables.get('rwDeviceId')&&x.access==='RW')).to.eql(true);});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 - Revoke RW device",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/devices/{{rwDeviceId}}"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const { Buffer } = require('buffer');",
+              "function b64u(bytes) { return Buffer.from(bytes).toString('base64').replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/g,''); }",
+              "function unb64u(value) { const padding='='.repeat((4-(value.length%4))%4); return new Uint8Array(Buffer.from(value.replace(/-/g,'+').replace(/_/g,'/')+padding,'base64')); }",
+              "function randomBytes(length) { const data=new Uint8Array(length); crypto.getRandomValues(data); return data; }",
+              "async function sha256bytes(input) { const bytes=input instanceof Uint8Array ? input : new Uint8Array(Buffer.from(String(input),'utf8')); return new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)); }",
+              "async function sha256hex(input) { return Buffer.from(await sha256bytes(input)).toString('hex'); }",
+              "async function loadSigningKey(role) { return await crypto.subtle.importKey('pkcs8', unb64u(pm.collectionVariables.get(role+'PrivateKeyPkcs8')), {name:'Ed25519'}, false, ['sign']); }",
+              "async function signRequest(role, uri, body='') {",
+              "  const timestamp=Math.floor(Date.now()/1000).toString();",
+              "  const nonce=b64u(randomBytes(16));",
+              "  const canonical=['AW-REQUEST-V1',pm.request.method.toUpperCase(),uri,timestamp,nonce,await sha256hex(body)].join('\\n');",
+              "  const key=await loadSigningKey(role);",
+              "  const sig=new Uint8Array(await crypto.subtle.sign({name:'Ed25519'},key,new Uint8Array(Buffer.from(canonical,'utf8'))));",
+              "  pm.request.headers.upsert({key:'X-AW-Device-Id',value:pm.collectionVariables.get(role+'DeviceId')});",
+              "  pm.request.headers.upsert({key:'X-AW-Vault-Id',value:pm.collectionVariables.get('vaultId')});",
+              "  pm.request.headers.upsert({key:'X-AW-Timestamp',value:timestamp});",
+              "  pm.request.headers.upsert({key:'X-AW-Nonce',value:nonce});",
+              "  pm.request.headers.upsert({key:'X-AW-Signature',value:b64u(sig)});",
+              "  pm.request.headers.upsert({key:'Accept',value:'application/json'});",
+              "}",
+              "const id=pm.collectionVariables.get('rwDeviceId');await signRequest('owner','/api/v1/devices/'+id);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              "pm.test('revoked',()=>pm.expect(pm.response.json().status).to.eql('revoked'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 - Revoked device denied",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/v1/me"
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const { Buffer } = require('buffer');",
+              "function b64u(bytes) { return Buffer.from(bytes).toString('base64').replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/g,''); }",
+              "function unb64u(value) { const padding='='.repeat((4-(value.length%4))%4); return new Uint8Array(Buffer.from(value.replace(/-/g,'+').replace(/_/g,'/')+padding,'base64')); }",
+              "function randomBytes(length) { const data=new Uint8Array(length); crypto.getRandomValues(data); return data; }",
+              "async function sha256bytes(input) { const bytes=input instanceof Uint8Array ? input : new Uint8Array(Buffer.from(String(input),'utf8')); return new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)); }",
+              "async function sha256hex(input) { return Buffer.from(await sha256bytes(input)).toString('hex'); }",
+              "async function loadSigningKey(role) { return await crypto.subtle.importKey('pkcs8', unb64u(pm.collectionVariables.get(role+'PrivateKeyPkcs8')), {name:'Ed25519'}, false, ['sign']); }",
+              "async function signRequest(role, uri, body='') {",
+              "  const timestamp=Math.floor(Date.now()/1000).toString();",
+              "  const nonce=b64u(randomBytes(16));",
+              "  const canonical=['AW-REQUEST-V1',pm.request.method.toUpperCase(),uri,timestamp,nonce,await sha256hex(body)].join('\\n');",
+              "  const key=await loadSigningKey(role);",
+              "  const sig=new Uint8Array(await crypto.subtle.sign({name:'Ed25519'},key,new Uint8Array(Buffer.from(canonical,'utf8'))));",
+              "  pm.request.headers.upsert({key:'X-AW-Device-Id',value:pm.collectionVariables.get(role+'DeviceId')});",
+              "  pm.request.headers.upsert({key:'X-AW-Vault-Id',value:pm.collectionVariables.get('vaultId')});",
+              "  pm.request.headers.upsert({key:'X-AW-Timestamp',value:timestamp});",
+              "  pm.request.headers.upsert({key:'X-AW-Nonce',value:nonce});",
+              "  pm.request.headers.upsert({key:'X-AW-Signature',value:b64u(sig)});",
+              "  pm.request.headers.upsert({key:'Accept',value:'application/json'});",
+              "}",
+              "await signRequest('rw','/api/v1/me');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 401',()=>pm.response.to.have.status(401));",
+              "pm.test('vault_access_revoked',()=>pm.expect(pm.response.json().error).to.eql('vault_access_revoked'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 - Delete test vault",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/v1/vaults/{{vaultId}}",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"confirm\":\"DELETE\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const { Buffer } = require('buffer');",
+              "function b64u(bytes) { return Buffer.from(bytes).toString('base64').replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/g,''); }",
+              "function unb64u(value) { const padding='='.repeat((4-(value.length%4))%4); return new Uint8Array(Buffer.from(value.replace(/-/g,'+').replace(/_/g,'/')+padding,'base64')); }",
+              "function randomBytes(length) { const data=new Uint8Array(length); crypto.getRandomValues(data); return data; }",
+              "async function sha256bytes(input) { const bytes=input instanceof Uint8Array ? input : new Uint8Array(Buffer.from(String(input),'utf8')); return new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)); }",
+              "async function sha256hex(input) { return Buffer.from(await sha256bytes(input)).toString('hex'); }",
+              "async function loadSigningKey(role) { return await crypto.subtle.importKey('pkcs8', unb64u(pm.collectionVariables.get(role+'PrivateKeyPkcs8')), {name:'Ed25519'}, false, ['sign']); }",
+              "async function signRequest(role, uri, body='') {",
+              "  const timestamp=Math.floor(Date.now()/1000).toString();",
+              "  const nonce=b64u(randomBytes(16));",
+              "  const canonical=['AW-REQUEST-V1',pm.request.method.toUpperCase(),uri,timestamp,nonce,await sha256hex(body)].join('\\n');",
+              "  const key=await loadSigningKey(role);",
+              "  const sig=new Uint8Array(await crypto.subtle.sign({name:'Ed25519'},key,new Uint8Array(Buffer.from(canonical,'utf8'))));",
+              "  pm.request.headers.upsert({key:'X-AW-Device-Id',value:pm.collectionVariables.get(role+'DeviceId')});",
+              "  pm.request.headers.upsert({key:'X-AW-Vault-Id',value:pm.collectionVariables.get('vaultId')});",
+              "  pm.request.headers.upsert({key:'X-AW-Timestamp',value:timestamp});",
+              "  pm.request.headers.upsert({key:'X-AW-Nonce',value:nonce});",
+              "  pm.request.headers.upsert({key:'X-AW-Signature',value:b64u(sig)});",
+              "  pm.request.headers.upsert({key:'Accept',value:'application/json'});",
+              "}",
+              "const body='{\"confirm\":\"DELETE\"}';pm.request.body.update(body);const id=pm.collectionVariables.get('vaultId');await signRequest('owner','/api/v1/vaults/'+id,body);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              "pm.test('deleted',()=>pm.expect(pm.response.json().status).to.eql('deleted'));"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

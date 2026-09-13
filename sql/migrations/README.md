@@ -23,6 +23,6 @@ Naamgeving:
 
 ## Huidige status
 
-Database schema version: **1**
+Database schema version: **2**
 
-Server **1.1.0** bevat geen schemawijziging en heeft daarom geen `.sql`-patch in deze directory nodig.
+Server **1.2.0** gebruikt `002_global_devices_pairing.sql` om een bestaande schema-1 database naar het globale device- en pairingmodel te migreren.
