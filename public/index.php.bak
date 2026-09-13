@@ -1,0 +1,450 @@
+<?php
+
+declare(strict_types=1);
+
+header('Content-Type: application/json; charset=utf-8');
+
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
+$method = $_SERVER['REQUEST_METHOD'];
+$path   = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+
+
+/*
+ * JSON response helper
+ */
+function jsonResponse(int $status, array $data): never
+{
+    http_response_code($status);
+
+    echo json_encode(
+        $data,
+        JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+    );
+
+    exit;
+}
+
+
+/*
+ * UUID v4/v1/etc. syntax validation
+ */
+function validUuid(string $uuid): bool
+{
+    return (bool) preg_match(
+        '/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i',
+        $uuid
+    );
+}
+
+
+/*
+ * Strict Base64 decoder
+ */
+function decodeBase64Field(array $data, string $field): string
+{
+    if (!isset($data[$field]) || !is_string($data[$field])) {
+        jsonResponse(400, [
+            'error' => 'invalid_request',
+            'field' => $field
+        ]);
+    }
+
+    $decoded = base64_decode($data[$field], true);
+
+    if ($decoded === false) {
+        jsonResponse(400, [
+            'error' => 'invalid_base64',
+            'field' => $field
+        ]);
+    }
+
+    return $decoded;
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * HEALTH CHECK
+ * ------------------------------------------------------------
+ */
+
+if ($method === 'GET' && $path === '/api/v1/health') {
+
+    require dirname(__DIR__) . '/database.php';
+
+    try {
+        $mysqli = new mysqli(
+            $dbserver,
+            $dbuser,
+            $dbww,
+            $db
+        );
+
+        $mysqli->set_charset('utf8mb4');
+        $mysqli->query('SELECT 1');
+
+        jsonResponse(200, [
+            'status'     => 'ok',
+            'database'   => 'ok',
+            'apiVersion' => 1
+        ]);
+
+    } catch (Throwable $e) {
+
+        error_log(
+            'Healthcheck database error: ' .
+            $e->getMessage()
+        );
+
+        jsonResponse(503, [
+            'status'   => 'error',
+            'database' => 'unavailable'
+        ]);
+    }
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * CREATE VAULT
+ * POST /api/v1/vaults
+ * ------------------------------------------------------------
+ */
+
+if ($method === 'POST' && $path === '/api/v1/vaults') {
+
+    $rawBody = file_get_contents('php://input');
+
+    if ($rawBody === false || $rawBody === '') {
+        jsonResponse(400, [
+            'error' => 'empty_request'
+        ]);
+    }
+
+    try {
+        $data = json_decode(
+            $rawBody,
+            true,
+            512,
+            JSON_THROW_ON_ERROR
+        );
+    } catch (JsonException $e) {
+        jsonResponse(400, [
+            'error' => 'invalid_json'
+        ]);
+    }
+
+
+    /*
+     * Required fields
+     */
+
+    $vaultId  = $data['vaultId']  ?? '';
+    $deviceId = $data['deviceId'] ?? '';
+    $keyEpoch = $data['keyEpoch'] ?? null;
+
+
+    if (!is_string($vaultId) || !validUuid($vaultId)) {
+        jsonResponse(400, [
+            'error' => 'invalid_vault_id'
+        ]);
+    }
+
+    if (!is_string($deviceId) || !validUuid($deviceId)) {
+        jsonResponse(400, [
+            'error' => 'invalid_device_id'
+        ]);
+    }
+
+    /*
+     * Eerste epoch moet altijd 1 zijn.
+     */
+    if ($keyEpoch !== 1) {
+        jsonResponse(400, [
+            'error' => 'invalid_key_epoch'
+        ]);
+    }
+
+
+    /*
+     * Binary cryptographic material
+     */
+
+    $authPublicKey =
+        decodeBase64Field($data, 'authPublicKey');
+
+    $encryptionPublicKey =
+        decodeBase64Field($data, 'encryptionPublicKey');
+
+    $keyEnvelope =
+        decodeBase64Field($data, 'keyEnvelope');
+
+    $keyEnvelopeNonce =
+        decodeBase64Field($data, 'keyEnvelopeNonce');
+
+
+    /*
+     * Basic size sanity checks.
+     *
+     * Voor de test genereren we random data.
+     * Later leggen we per crypto-version exacte keylengtes vast.
+     */
+
+    if (strlen($authPublicKey) > 128) {
+        jsonResponse(400, [
+            'error' => 'auth_public_key_too_large'
+        ]);
+    }
+
+    if (strlen($encryptionPublicKey) > 128) {
+        jsonResponse(400, [
+            'error' => 'encryption_public_key_too_large'
+        ]);
+    }
+
+    if (strlen($keyEnvelopeNonce) > 32) {
+        jsonResponse(400, [
+            'error' => 'key_envelope_nonce_too_large'
+        ]);
+    }
+
+
+    require dirname(__DIR__) . '/database.php';
+
+    try {
+
+        $mysqli = new mysqli(
+            $dbserver,
+            $dbuser,
+            $dbww,
+            $db
+        );
+
+        $mysqli->set_charset('utf8mb4');
+
+        /*
+         * Alles of niets.
+         */
+        $mysqli->begin_transaction();
+
+
+        /*
+         * 1. Vault
+         */
+
+        $stmt = $mysqli->prepare(
+            '
+            INSERT INTO vaults
+            (
+                vault_id,
+                current_key_epoch
+            )
+            VALUES (?, 1)
+            '
+        );
+
+        $stmt->bind_param(
+            's',
+            $vaultId
+        );
+
+        $stmt->execute();
+        $stmt->close();
+
+
+        /*
+         * 2. Eerste device
+         *
+         * Eerste apparaat is automatisch:
+         * - RW
+         * - owner
+         * - ACTIVE
+         */
+
+        $accessMode = 'RW';
+        $status     = 'ACTIVE';
+
+        $stmt = $mysqli->prepare(
+            '
+            INSERT INTO devices
+            (
+                device_id,
+                vault_id,
+                access_mode,
+                is_owner,
+                status,
+                auth_public_key,
+                auth_key_algorithm,
+                encryption_public_key,
+                encryption_key_algorithm
+            )
+            VALUES
+            (
+                ?,
+                ?,
+                ?,
+                TRUE,
+                ?,
+                ?,
+                \'Ed25519\',
+                ?,
+                \'X25519\'
+            )
+            '
+        );
+
+        $stmt->bind_param(
+            'ssssss',
+            $deviceId,
+            $vaultId,
+            $accessMode,
+            $status,
+            $authPublicKey,
+            $encryptionPublicKey
+        );
+
+        $stmt->execute();
+        $stmt->close();
+
+
+        /*
+         * 3. Eerste key epoch
+         */
+
+        $stmt = $mysqli->prepare(
+            '
+            INSERT INTO key_epochs
+            (
+                vault_id,
+                epoch,
+                created_by_device_id
+            )
+            VALUES (?, 1, ?)
+            '
+        );
+
+        $stmt->bind_param(
+            'ss',
+            $vaultId,
+            $deviceId
+        );
+
+        $stmt->execute();
+        $stmt->close();
+
+
+        /*
+         * 4. Versleutelde VaultKey voor dit device
+         */
+
+        $stmt = $mysqli->prepare(
+            '
+            INSERT INTO device_key_envelopes
+            (
+                vault_id,
+                epoch,
+                device_id,
+                envelope_ciphertext,
+                envelope_nonce,
+                crypto_version
+            )
+            VALUES
+            (
+                ?,
+                1,
+                ?,
+                ?,
+                ?,
+                1
+            )
+            '
+        );
+
+        $stmt->bind_param(
+            'ssss',
+            $vaultId,
+            $deviceId,
+            $keyEnvelope,
+            $keyEnvelopeNonce
+        );
+
+        $stmt->execute();
+        $stmt->close();
+
+
+        /*
+         * Klaar
+         */
+
+        $mysqli->commit();
+
+
+        jsonResponse(201, [
+            'status'   => 'ok',
+            'vaultId'  => $vaultId,
+            'deviceId' => $deviceId,
+            'access'   => 'RW',
+            'owner'    => true,
+            'keyEpoch' => 1
+        ]);
+
+    } catch (mysqli_sql_exception $e) {
+
+        if (isset($mysqli)) {
+            try {
+                $mysqli->rollback();
+            } catch (Throwable) {
+            }
+        }
+
+        error_log(
+            'Create vault database error: ' .
+            $e->getMessage()
+        );
+
+
+        /*
+         * Duplicate UUID / record.
+         */
+        if ($e->getCode() === 1062) {
+            jsonResponse(409, [
+                'error' => 'already_exists'
+            ]);
+        }
+
+
+        jsonResponse(500, [
+            'error' => 'database_error'
+        ]);
+
+    } catch (Throwable $e) {
+
+        if (isset($mysqli)) {
+            try {
+                $mysqli->rollback();
+            } catch (Throwable) {
+            }
+        }
+
+        error_log(
+            'Create vault error: ' .
+            $e->getMessage()
+        );
+
+        jsonResponse(500, [
+            'error' => 'internal_error'
+        ]);
+    }
+}
+
+
+/*
+ * ------------------------------------------------------------
+ * UNKNOWN ENDPOINT
+ * ------------------------------------------------------------
+ */
+
+jsonResponse(404, [
+    'error' => 'not_found'
+]);

@@ -1,0 +1,5 @@
+<?php
+$dbserver = 'localhost';
+$dbuser = 'activiteitenweger';
+$dbww = 'geheim1234!';
+$db = 'activiteitenweger';
