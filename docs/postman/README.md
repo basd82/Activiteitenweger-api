@@ -6,9 +6,13 @@ Deze directory bevat de Postman-collectie voor de Activiteitenweger API.
 
 - `Activiteitenweger-API.postman_collection.json` — stateful smoke/integratietest voor API v1 / server 1.1.0.
 
+## Belangrijk: geen externe npm-packages
+
+De eerdere aanpak met `pm.require('npm:tweetnacl@...')` werkt niet in iedere Postman-installatie. Deze collectie gebruikt daarom dezelfde aanpak als de eerdere werkende regressietest v2: native Web Crypto voor Ed25519/SHA-256 en `require('buffer')` als ingebouwde module.
+
 ## Gebruik
 
-Importeer de collectie in een actuele Postman-versie en voer de **hele collectie in volgorde** uit met de Collection Runner.
+Importeer zowel `Activiteitenweger-API.postman_collection.json` als `Activiteitenweger.postman_environment.json` in een actuele Postman-versie en voer de **hele collectie in volgorde** uit met de Collection Runner.
 
 De collectie gebruikt standaard:
 
@@ -33,7 +37,7 @@ als `baseUrl`. Pas de collection variable aan wanneer je een test- of acceptatie
 11. tombstone via sync controleren;
 12. de tijdelijke test-vault verwijderen.
 
-De requests gebruiken Postman scripts en `pm.require('npm:tweetnacl@1.0.3')` voor Ed25519-signing. Postman ondersteunt externe npm-packages via `pm.require`.
+De requests gebruiken **geen externe npm-packages**. Voor Ed25519-signing en SHA-256 gebruikt de collectie de native Web Crypto API (`crypto.subtle`), plus alleen de ingebouwde Postman/Node-module `buffer`.
 
 ## Cryptografische scope
 
