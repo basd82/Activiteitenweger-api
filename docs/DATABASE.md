@@ -2,6 +2,8 @@
 
 ## Huidig schema
 
+Database schema version: **1**
+
 Het actuele installatieschema staat in `sql/install.sql`.
 
 Tabellen:
@@ -289,13 +291,20 @@ Na deze migratie moeten in elk geval worden herzien:
 
 `migration.sql` is een historische gerichte migratie die `request_nonces` toevoegt aan een bestaande installatie.
 
-Voor volgende schemawijzigingen verdient een genummerde migratiestructuur de voorkeur, bijvoorbeeld:
+Nieuwe schemawijzigingen worden vanaf nu als genummerde patches onder `sql/migrations/` toegevoegd, bijvoorbeeld:
 
 ```text
 sql/migrations/
-  001_initial.sql
-  002_request_nonces.sql
-  003_global_devices_vault_devices.sql
+  002_global_devices_vault_devices.sql
+  003_pairing_grants.sql
 ```
 
-Zodra de geplande device-migratie wordt gebouwd, moet `sql/install.sql` tegelijk worden bijgewerkt zodat een verse installatie direct op de actuele structuur uitkomt.
+Schema versie 1 is de huidige baseline uit `sql/install.sql`; daarvoor is geen aparte migratie nodig.
+
+Iedere toekomstige schemawijziging moet tegelijk:
+
+1. een nieuwe genummerde migratie voor bestaande installaties krijgen;
+2. in `sql/install.sql` worden verwerkt voor verse installaties;
+3. in `CHANGELOG.md` en `docs/UPDATE.md` worden genoemd.
+
+Zie ook `sql/migrations/README.md`.
