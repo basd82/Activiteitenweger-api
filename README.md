@@ -12,7 +12,7 @@ De app en API worden afzonderlijk ontwikkeld, maar delen hetzelfde protocol en d
 ## Status
 
 API-versie: **v1**  
-Serverversie: **1.1.0**
+Serverversie: **1.2.0**
 
 Werkend in de huidige versie:
 
@@ -26,6 +26,9 @@ Werkend in de huidige versie:
 - revision-conflictcontrole;
 - cursor-gebaseerde synchronisatie;
 - conflictmetadata voor veilige client-side conflictafhandeling;
+- pairing van tweede apparaten met R/RW-grants;
+- multi-device vaulttoegang via `vault_devices`;
+- device-overzicht en revoke per vault;
 - serverversie via health-response en `X-AW-Server-Version`;
 - tombstones voor verwijderde records;
 - volledige verwijdering van een vault door de owner;
