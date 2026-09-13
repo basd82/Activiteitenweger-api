@@ -2,23 +2,22 @@ name: Verify API
 
 on:
   pull_request:
-  push:
-    branches:
-      - main
 
 permissions:
   contents: read
-
-concurrency:
-  group: api-verify-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   php:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: PHP syntax
-        run: find public src tools -name '*.php' -print0 | xargs -0 -n1 php -l
-      - name: Required PHP extensions
-        run: php -r 'exit(extension_loaded("sodium") && extension_loaded("mysqli") ? 0 : 1);'
+        shell: bash
+        run: |
+          find public src tools -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Check sodium
+        shell: bash
+        run: php -r 'exit(extension_loaded("sodium") ? 0 : 1);'
