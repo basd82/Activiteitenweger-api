@@ -172,3 +172,33 @@ Voor de stap van de oorspronkelijke v1-server naar 1.1.0:
 7. smoke-test uitvoeren.
 
 De database blijft schema versie 1.
+
+
+## Release 1.2.0 — pairing en multi-device
+
+Deze release bevat **database schema version 2** en vereist op bestaande schema-1 installaties:
+
+```bash
+cd /var/www/activiteitenweger
+
+# Maak eerst een databasebackup en stop/paueer API-writes.
+mysql activiteitenweger < sql/migrations/002_global_devices_pairing.sql
+```
+
+Daarna code bijwerken, PHP syntax controleren en PHP-FPM reloaden volgens de algemene procedure hierboven.
+
+Controle:
+
+```bash
+curl -i -fsS https://app.dikkenberg.net/api/v1/health
+```
+
+Moet `serverVersion: 1.2.0` tonen.
+
+De migratie:
+- maakt `vault_devices`;
+- migreert bestaande device->vault grants;
+- maakt `devices` globaal;
+- voegt pairing-secret hashes en revoke-audit toe.
+
+Voer de SQL-patch **één keer** uit en alleen na backup.
