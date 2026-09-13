@@ -35,7 +35,8 @@ cd /var/www/activiteitenweger
 git status --short
 git rev-parse HEAD
 
-mysqldump --single-transaction --routines --triggers   activiteitenweger > /root/activiteitenweger-before-update.sql
+mysqldump --single-transaction --routines --triggers \\
+  activiteitenweger > /root/activiteitenweger-before-update.sql
 ```
 
 Controleer dat er geen lokale broncodewijzigingen staan die door `git pull` overschreven of vermengd kunnen worden.
@@ -81,7 +82,8 @@ Lees vóór uitvoering altijd de header/opmerkingen van de migratie en de betref
 ```bash
 cd /var/www/activiteitenweger
 
-find public src tools -name '*.php' -print0   | xargs -0 -n1 php -l
+find public src tools -name '*.php' -print0 \\
+  | xargs -0 -n1 php -l
 ```
 
 Alle bestanden moeten zonder syntaxfouten eindigen.
