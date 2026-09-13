@@ -214,7 +214,7 @@ ALTER TABLE `pairing_invites`
   ADD KEY `fk_pairing_creator` (`created_by_device_id`),
   ADD KEY `fk_pairing_claimed_device` (`claimed_by_device_id`),
   ADD KEY `fk_pairing_epoch` (`vault_id`,`key_epoch`),
-  ADD KEY `idx_pairing_secret_hash` (`pairing_secret_hash`),
+  ADD UNIQUE KEY `uq_pairing_secret_hash` (`pairing_secret_hash`),
   ADD KEY `fk_pairing_revoked_by` (`revoked_by`);
 
 --
