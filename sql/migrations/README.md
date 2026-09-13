@@ -16,9 +16,9 @@ Deze directory bevat SQL-patches voor **bestaande** Activiteitenweger-databases.
 Naamgeving:
 
 ```text
-001_beschrijving.sql
 002_beschrijving.sql
 003_beschrijving.sql
+004_beschrijving.sql
 ```
 
 ## Huidige status
