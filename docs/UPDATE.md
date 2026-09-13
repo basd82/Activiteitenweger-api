@@ -75,7 +75,7 @@ mysql activiteitenweger < sql/migrations/002_voorbeeld.sql
 
 Lees vóór uitvoering altijd de header/opmerkingen van de migratie en de betreffende release in `CHANGELOG.md`.
 
-**Server 1.1.0 bevat geen database-schemawijziging en vereist dus geen SQL-migratie.**
+**Server 1.2.0 gebruikt database schema 2.** Voor een bestaande schema-1 installatie is migratie `002_global_devices_pairing.sql` vereist.
 
 ## 3. PHP syntax controleren
 
@@ -104,10 +104,10 @@ Voer dit alleen uit met de servicenaam die daadwerkelijk op de server bestaat.
 curl -i -fsS https://app.dikkenberg.net/api/v1/health
 ```
 
-Voor server 1.1.0 moet onder andere zichtbaar zijn:
+Voor server 1.2.0 moet onder andere zichtbaar zijn:
 
 ```text
-X-AW-Server-Version: 1.1.0
+X-AW-Server-Version: 1.2.0
 ```
 
 met body:
@@ -117,7 +117,7 @@ met body:
   "status": "ok",
   "database": "ok",
   "apiVersion": 1,
-  "serverVersion": "1.1.0"
+  "serverVersion": "1.2.0"
 }
 ```
 
