@@ -194,6 +194,7 @@ De testclient kan lokaal private testkeys opslaan. Behandel eventuele test-state
 
 - [Installatiehandleiding](docs/INSTALL.md)
 - [Updatehandleiding](docs/UPDATE.md)
+- [Postman testcollectie](docs/postman/README.md)
 - [Changelog](CHANGELOG.md)
 - [API-protocol](docs/API.md)
 - [Database en datamodel](docs/DATABASE.md)
