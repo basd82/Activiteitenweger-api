@@ -52,6 +52,11 @@ try {
         aw_handle_transfer_ownership($auth, strtolower($m[1]));
     }
 
+    if ($method === 'GET' && $path === '/api/v1/recovery') {
+        $auth = aw_require_auth($rawBody);
+        aw_handle_get_recovery($auth);
+    }
+
     if ($method === 'POST' && $path === '/api/v1/recovery') {
         $auth = aw_require_auth($rawBody);
         aw_handle_create_recovery($auth, $rawBody);
