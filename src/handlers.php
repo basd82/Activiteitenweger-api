@@ -761,7 +761,7 @@ function aw_handle_revoke_pairing_invite(array $auth, string $inviteId): never
     aw_json_response(200, ['status' => 'revoked']);
 }
 
-function aw_handle_update_device_label(array $auth, string $rawBody): never
+function aw_handle_update_device_label(array $auth, string $rawBody, ?string $targetDeviceId = null): never
 {
     $data = aw_decode_json_object($rawBody);
     $ciphertext = aw_decode_binary_field($data, 'labelCiphertext', null, 1024);
@@ -770,13 +770,21 @@ function aw_handle_update_device_label(array $auth, string $rawBody): never
     }
     $nonce = aw_decode_binary_field($data, 'labelNonce', 24);
 
+    $deviceId = $targetDeviceId ?? $auth['device_id'];
+    if ($targetDeviceId !== null && $targetDeviceId !== $auth['device_id']) {
+        aw_require_owner($auth);
+    }
+    if (!aw_valid_uuid($deviceId)) {
+        aw_json_response(404, ['error' => 'not_found']);
+    }
+
     $db = aw_db();
     $stmt = $db->prepare(
         "UPDATE vault_devices
             SET label_ciphertext = ?, label_nonce = ?
           WHERE vault_id = ? AND device_id = ? AND status = 'ACTIVE'"
     );
-    $stmt->bind_param('ssss', $ciphertext, $nonce, $auth['vault_id'], $auth['device_id']);
+    $stmt->bind_param('ssss', $ciphertext, $nonce, $auth['vault_id'], $deviceId);
     $stmt->execute();
     $affected = $stmt->affected_rows;
     $stmt->close();
