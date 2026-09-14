@@ -142,6 +142,7 @@ function aw_handle_devices(array $auth): never
     $db = aw_db();
     $stmt = $db->prepare(
         "SELECT vd.device_id, vd.access_mode, vd.is_owner, vd.status,
+                vd.label_ciphertext, vd.label_nonce,
                 DATE_FORMAT(vd.created_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS created_at,
                 DATE_FORMAT(d.last_seen_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS last_seen_at,
                 DATE_FORMAT(vd.revoked_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS revoked_at
@@ -164,6 +165,8 @@ function aw_handle_devices(array $auth): never
             'createdAt' => $row['created_at'],
             'lastSeenAt' => $row['last_seen_at'],
             'revokedAt' => $row['revoked_at'],
+            'labelCiphertext' => $row['label_ciphertext'] === null ? null : aw_b64url_encode($row['label_ciphertext']),
+            'labelNonce' => $row['label_nonce'] === null ? null : aw_b64url_encode($row['label_nonce']),
         ];
     }
     $stmt->close();
@@ -756,6 +759,116 @@ function aw_handle_revoke_pairing_invite(array $auth, string $inviteId): never
         aw_json_response(404, ['error' => 'pairing_invite_not_found']);
     }
     aw_json_response(200, ['status' => 'revoked']);
+}
+
+function aw_handle_update_device_label(array $auth, string $rawBody, ?string $targetDeviceId = null): never
+{
+    $data = aw_decode_json_object($rawBody);
+    $ciphertext = aw_decode_binary_field($data, 'labelCiphertext', null, 1024);
+    if (strlen($ciphertext) < 16) {
+        aw_json_response(400, ['error' => 'invalid_length', 'field' => 'labelCiphertext']);
+    }
+    $nonce = aw_decode_binary_field($data, 'labelNonce', 24);
+
+    $deviceId = $targetDeviceId ?? $auth['device_id'];
+    if ($targetDeviceId !== null && $targetDeviceId !== $auth['device_id']) {
+        aw_require_owner($auth);
+    }
+    if (!aw_valid_uuid($deviceId)) {
+        aw_json_response(404, ['error' => 'not_found']);
+    }
+
+    $db = aw_db();
+    $stmt = $db->prepare(
+        "UPDATE vault_devices
+            SET label_ciphertext = ?, label_nonce = ?
+          WHERE vault_id = ? AND device_id = ? AND status = 'ACTIVE'"
+    );
+    $stmt->bind_param('ssss', $ciphertext, $nonce, $auth['vault_id'], $deviceId);
+    $stmt->execute();
+    $affected = $stmt->affected_rows;
+    $stmt->close();
+
+    if ($affected < 0) {
+        aw_json_response(500, ['error' => 'database_error']);
+    }
+    aw_json_response(200, ['status' => 'ok']);
+}
+
+function aw_handle_transfer_ownership(array $auth, string $deviceId): never
+{
+    aw_require_owner($auth);
+    if (!aw_valid_uuid($deviceId) || $deviceId === $auth['device_id']) {
+        aw_json_response(400, ['error' => 'invalid_target_device']);
+    }
+
+    $db = aw_db();
+    try {
+        $db->begin_transaction();
+
+        $stmt = $db->prepare(
+            "SELECT access_mode, is_owner, status
+               FROM vault_devices
+              WHERE vault_id = ? AND device_id = ?
+              FOR UPDATE"
+        );
+        $stmt->bind_param('ss', $auth['vault_id'], $deviceId);
+        $stmt->execute();
+        $target = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$target || $target['status'] !== 'ACTIVE') {
+            $db->rollback();
+            aw_json_response(404, ['error' => 'active_device_grant_not_found']);
+        }
+        if ($target['access_mode'] !== 'RW') {
+            $db->rollback();
+            aw_json_response(409, ['error' => 'owner_target_requires_rw']);
+        }
+        if ((bool)$target['is_owner']) {
+            $db->rollback();
+            aw_json_response(409, ['error' => 'target_already_owner']);
+        }
+
+        $stmt = $db->prepare(
+            "UPDATE vault_devices
+                SET is_owner = FALSE
+              WHERE vault_id = ? AND device_id = ? AND is_owner = TRUE"
+        );
+        $stmt->bind_param('ss', $auth['vault_id'], $auth['device_id']);
+        $stmt->execute();
+        if ($stmt->affected_rows !== 1) {
+            $stmt->close();
+            $db->rollback();
+            aw_json_response(409, ['error' => 'owner_changed']);
+        }
+        $stmt->close();
+
+        $stmt = $db->prepare(
+            "UPDATE vault_devices
+                SET is_owner = TRUE
+              WHERE vault_id = ? AND device_id = ? AND access_mode = 'RW' AND status = 'ACTIVE'"
+        );
+        $stmt->bind_param('ss', $auth['vault_id'], $deviceId);
+        $stmt->execute();
+        if ($stmt->affected_rows !== 1) {
+            $stmt->close();
+            $db->rollback();
+            aw_json_response(409, ['error' => 'owner_transfer_failed']);
+        }
+        $stmt->close();
+
+        $db->commit();
+        aw_json_response(200, [
+            'status' => 'ok',
+            'previousOwnerDeviceId' => $auth['device_id'],
+            'ownerDeviceId' => $deviceId,
+        ]);
+    } catch (Throwable $e) {
+        try { $db->rollback(); } catch (Throwable) {}
+        error_log('Transfer ownership error: ' . $e->getMessage());
+        aw_json_response(500, ['error' => 'database_error']);
+    }
 }
 
 function aw_handle_revoke_device(array $auth, string $deviceId): never

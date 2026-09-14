@@ -37,6 +37,21 @@ try {
         aw_handle_devices($auth);
     }
 
+    if ($method === 'PUT' && $path === '/api/v1/me/device-label') {
+        $auth = aw_require_auth($rawBody);
+        aw_handle_update_device_label($auth, $rawBody);
+    }
+
+    if ($method === 'PUT' && preg_match('#^/api/v1/devices/([0-9a-f-]{36})/label$#i', $path, $m) === 1) {
+        $auth = aw_require_auth($rawBody);
+        aw_handle_update_device_label($auth, $rawBody, strtolower($m[1]));
+    }
+
+    if ($method === 'POST' && preg_match('#^/api/v1/devices/([0-9a-f-]{36})/transfer-ownership$#i', $path, $m) === 1) {
+        $auth = aw_require_auth($rawBody);
+        aw_handle_transfer_ownership($auth, strtolower($m[1]));
+    }
+
     if ($method === 'POST' && $path === '/api/v1/pairing/invites') {
         $auth = aw_require_auth($rawBody);
         aw_handle_create_pairing_invite($auth, $rawBody);

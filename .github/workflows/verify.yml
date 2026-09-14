@@ -41,16 +41,17 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y default-mysql-client
-      - name: Validate fresh schema 2
+      - name: Validate fresh current schema
         run: |
           mysql -h127.0.0.1 -uroot -proot -e "CREATE DATABASE aw_fresh CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci"
           mysql -h127.0.0.1 -uroot -proot aw_fresh < sql/install.sql
           mysql -h127.0.0.1 -uroot -proot aw_fresh -e "SHOW TABLES"
-      - name: Validate schema 1 to 2 migration
+      - name: Validate schema 1 to current migration
         run: |
           git show d651bd3f0e36bb12921bf789f8ccde28882cb8f6:sql/install.sql > /tmp/install-schema1.sql
           mysql -h127.0.0.1 -uroot -proot -e "CREATE DATABASE aw_migrate CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci"
           mysql -h127.0.0.1 -uroot -proot aw_migrate < /tmp/install-schema1.sql
           mysql -h127.0.0.1 -uroot -proot aw_migrate -e "ALTER TABLE devices ADD CONSTRAINT chk_owner_rw CHECK (is_owner = 0 OR access_mode = 'RW')"
           mysql -h127.0.0.1 -uroot -proot aw_migrate < sql/migrations/002_global_devices_pairing.sql
+          mysql -h127.0.0.1 -uroot -proot aw_migrate < sql/migrations/003_device_labels.sql
           mysql -h127.0.0.1 -uroot -proot aw_migrate -e "SHOW CREATE TABLE vault_devices"
