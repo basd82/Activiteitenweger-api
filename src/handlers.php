@@ -930,3 +930,237 @@ function aw_handle_self_revoke(array $auth): never
 
     aw_json_response(200, ['status' => 'revoked']);
 }
+
+
+function aw_handle_create_recovery(array $auth, string $rawBody): never
+{
+    aw_require_owner($auth);
+    $data = aw_decode_json_object($rawBody);
+
+    $recoveryId = strtolower(aw_required_string($data, 'recoveryId'));
+    if (!aw_valid_uuid($recoveryId)) {
+        aw_json_response(400, ['error' => 'invalid_recovery_id']);
+    }
+
+    $secretHash = aw_decode_binary_field($data, 'recoverySecretHash', 32);
+    $ciphertext = aw_decode_binary_field($data, 'keyPackageCiphertext', null, 8192);
+    $nonce = aw_decode_binary_field($data, 'keyPackageNonce', 24);
+    $keyEpoch = aw_required_positive_int($data, 'keyEpoch');
+
+    if ($keyEpoch !== (int)$auth['current_key_epoch']) {
+        aw_json_response(409, ['error' => 'stale_key_epoch']);
+    }
+
+    $db = aw_db();
+    try {
+        $db->begin_transaction();
+
+        $stmt = $db->prepare(
+            "UPDATE recovery_credentials
+                SET status = 'REVOKED',
+                    revoked_at = UTC_TIMESTAMP(6),
+                    revoked_by_device_id = ?
+              WHERE vault_id = ? AND status = 'ACTIVE'"
+        );
+        $stmt->bind_param('ss', $auth['device_id'], $auth['vault_id']);
+        $stmt->execute();
+        $stmt->close();
+
+        $stmt = $db->prepare(
+            "INSERT INTO recovery_credentials
+                (recovery_id, vault_id, secret_hash,
+                 key_package_ciphertext, key_package_nonce, key_epoch,
+                 status, created_by_device_id)
+             VALUES (?, ?, ?, ?, ?, ?, 'ACTIVE', ?)"
+        );
+        $stmt->bind_param(
+            'sssssis',
+            $recoveryId,
+            $auth['vault_id'],
+            $secretHash,
+            $ciphertext,
+            $nonce,
+            $keyEpoch,
+            $auth['device_id']
+        );
+        $stmt->execute();
+        $stmt->close();
+
+        $db->commit();
+        aw_json_response(201, [
+            'status' => 'ok',
+            'recoveryId' => $recoveryId,
+            'keyEpoch' => $keyEpoch,
+        ]);
+    } catch (mysqli_sql_exception $e) {
+        try { $db->rollback(); } catch (Throwable) {}
+        if ((int)$e->getCode() === 1062) {
+            aw_json_response(409, ['error' => 'recovery_credential_conflict']);
+        }
+        error_log('Create recovery database error: ' . $e->getMessage());
+        aw_json_response(500, ['error' => 'database_error']);
+    }
+}
+
+function aw_handle_claim_recovery(string $rawBody): never
+{
+    $data = aw_decode_json_object($rawBody);
+
+    $recoveryId = strtolower(aw_required_string($data, 'recoveryId'));
+    $deviceId = strtolower(aw_required_string($data, 'deviceId'));
+    if (!aw_valid_uuid($recoveryId) || !aw_valid_uuid($deviceId)) {
+        aw_json_response(400, ['error' => 'invalid_identifier']);
+    }
+
+    $secret = aw_decode_binary_field($data, 'recoverySecret', 32);
+    $authPublicKey = aw_decode_binary_field($data, 'authPublicKey', 32);
+    $encryptionPublicKey = aw_decode_binary_field($data, 'encryptionPublicKey', 32);
+    $secretHash = hash('sha256', "AW-RECOVERY-VERIFY-V1\n" . $secret, true);
+
+    $db = aw_db();
+    try {
+        $db->begin_transaction();
+
+        $stmt = $db->prepare(
+            "SELECT recovery_id, vault_id, secret_hash,
+                    key_package_ciphertext, key_package_nonce, key_epoch, status
+               FROM recovery_credentials
+              WHERE recovery_id = ?
+              FOR UPDATE"
+        );
+        $stmt->bind_param('s', $recoveryId);
+        $stmt->execute();
+        $recovery = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$recovery || $recovery['status'] !== 'ACTIVE') {
+            $db->rollback();
+            aw_json_response(404, ['error' => 'recovery_not_available']);
+        }
+        if (!hash_equals($recovery['secret_hash'], $secretHash)) {
+            $db->rollback();
+            aw_json_response(401, ['error' => 'invalid_recovery_secret']);
+        }
+
+        $stmt = $db->prepare(
+            'SELECT auth_public_key, encryption_public_key, status
+               FROM devices WHERE device_id = ?'
+        );
+        $stmt->bind_param('s', $deviceId);
+        $stmt->execute();
+        $existingDevice = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if ($existingDevice) {
+            if (
+                $existingDevice['status'] !== 'ACTIVE' ||
+                !hash_equals($existingDevice['auth_public_key'], $authPublicKey) ||
+                !hash_equals($existingDevice['encryption_public_key'], $encryptionPublicKey)
+            ) {
+                $db->rollback();
+                aw_json_response(409, ['error' => 'device_identity_conflict']);
+            }
+        } else {
+            $stmt = $db->prepare(
+                "INSERT INTO devices
+                    (device_id, status, auth_public_key, auth_key_algorithm,
+                     encryption_public_key, encryption_key_algorithm)
+                 VALUES (?, 'ACTIVE', ?, 'Ed25519', ?, 'X25519')"
+            );
+            $stmt->bind_param('sss', $deviceId, $authPublicKey, $encryptionPublicKey);
+            $stmt->execute();
+            $stmt->close();
+        }
+
+        $stmt = $db->prepare(
+            "UPDATE vault_devices
+                SET is_owner = FALSE
+              WHERE vault_id = ? AND is_owner = TRUE"
+        );
+        $stmt->bind_param('s', $recovery['vault_id']);
+        $stmt->execute();
+        $stmt->close();
+
+        $stmt = $db->prepare(
+            "INSERT INTO vault_devices
+                (vault_id, device_id, access_mode, is_owner, status, revoked_at, revoked_by)
+             VALUES (?, ?, 'RW', TRUE, 'ACTIVE', NULL, NULL)
+             ON DUPLICATE KEY UPDATE
+                access_mode = 'RW',
+                is_owner = TRUE,
+                status = 'ACTIVE',
+                revoked_at = NULL,
+                revoked_by = NULL"
+        );
+        $stmt->bind_param('ss', $recovery['vault_id'], $deviceId);
+        $stmt->execute();
+        $stmt->close();
+
+        $stmt = $db->prepare(
+            "UPDATE recovery_credentials
+                SET status = 'USED',
+                    used_at = UTC_TIMESTAMP(6),
+                    used_by_device_id = ?
+              WHERE recovery_id = ? AND status = 'ACTIVE'"
+        );
+        $stmt->bind_param('ss', $deviceId, $recoveryId);
+        $stmt->execute();
+        if ($stmt->affected_rows !== 1) {
+            $stmt->close();
+            $db->rollback();
+            aw_json_response(409, ['error' => 'recovery_already_used']);
+        }
+        $stmt->close();
+
+        $db->commit();
+
+        aw_json_response(201, [
+            'status' => 'ok',
+            'recoveryId' => $recoveryId,
+            'vaultId' => $recovery['vault_id'],
+            'deviceId' => $deviceId,
+            'access' => 'RW',
+            'owner' => true,
+            'keyEpoch' => (int)$recovery['key_epoch'],
+            'keyPackageCiphertext' => aw_b64url_encode($recovery['key_package_ciphertext']),
+            'keyPackageNonce' => aw_b64url_encode($recovery['key_package_nonce']),
+        ]);
+    } catch (mysqli_sql_exception $e) {
+        try { $db->rollback(); } catch (Throwable) {}
+        if ((int)$e->getCode() === 1062) {
+            aw_json_response(409, ['error' => 'recovery_device_conflict']);
+        }
+        error_log('Claim recovery database error: ' . $e->getMessage());
+        aw_json_response(500, ['error' => 'database_error']);
+    } catch (Throwable $e) {
+        try { $db->rollback(); } catch (Throwable) {}
+        error_log('Claim recovery error: ' . $e->getMessage());
+        aw_json_response(500, ['error' => 'internal_error']);
+    }
+}
+
+function aw_handle_revoke_recovery(array $auth, string $recoveryId): never
+{
+    aw_require_owner($auth);
+    if (!aw_valid_uuid($recoveryId)) {
+        aw_json_response(404, ['error' => 'not_found']);
+    }
+
+    $db = aw_db();
+    $stmt = $db->prepare(
+        "UPDATE recovery_credentials
+            SET status = 'REVOKED',
+                revoked_at = UTC_TIMESTAMP(6),
+                revoked_by_device_id = ?
+          WHERE recovery_id = ? AND vault_id = ? AND status = 'ACTIVE'"
+    );
+    $stmt->bind_param('sss', $auth['device_id'], $recoveryId, $auth['vault_id']);
+    $stmt->execute();
+    $affected = $stmt->affected_rows;
+    $stmt->close();
+
+    if ($affected !== 1) {
+        aw_json_response(404, ['error' => 'recovery_not_found']);
+    }
+    aw_json_response(200, ['status' => 'revoked']);
+}
