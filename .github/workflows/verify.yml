@@ -54,4 +54,6 @@ jobs:
           mysql -h127.0.0.1 -uroot -proot aw_migrate -e "ALTER TABLE devices ADD CONSTRAINT chk_owner_rw CHECK (is_owner = 0 OR access_mode = 'RW')"
           mysql -h127.0.0.1 -uroot -proot aw_migrate < sql/migrations/002_global_devices_pairing.sql
           mysql -h127.0.0.1 -uroot -proot aw_migrate < sql/migrations/003_device_labels.sql
+          mysql -h127.0.0.1 -uroot -proot aw_migrate < sql/migrations/004_recovery_credentials.sql
           mysql -h127.0.0.1 -uroot -proot aw_migrate -e "SHOW CREATE TABLE vault_devices"
+          mysql -h127.0.0.1 -uroot -proot aw_migrate -e "SHOW CREATE TABLE recovery_credentials"
