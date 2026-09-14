@@ -52,6 +52,20 @@ try {
         aw_handle_transfer_ownership($auth, strtolower($m[1]));
     }
 
+    if ($method === 'POST' && $path === '/api/v1/recovery') {
+        $auth = aw_require_auth($rawBody);
+        aw_handle_create_recovery($auth, $rawBody);
+    }
+
+    if ($method === 'POST' && $path === '/api/v1/recovery/claim') {
+        aw_handle_claim_recovery($rawBody);
+    }
+
+    if ($method === 'DELETE' && preg_match('#^/api/v1/recovery/([0-9a-f-]{36})$#i', $path, $m) === 1) {
+        $auth = aw_require_auth($rawBody);
+        aw_handle_revoke_recovery($auth, strtolower($m[1]));
+    }
+
     if ($method === 'POST' && $path === '/api/v1/pairing/invites') {
         $auth = aw_require_auth($rawBody);
         aw_handle_create_pairing_invite($auth, $rawBody);
