@@ -1164,3 +1164,29 @@ function aw_handle_revoke_recovery(array $auth, string $recoveryId): never
     }
     aw_json_response(200, ['status' => 'revoked']);
 }
+
+
+function aw_handle_get_recovery(array $auth): never
+{
+    aw_require_owner($auth);
+    $db = aw_db();
+    $stmt = $db->prepare(
+        "SELECT recovery_id, key_epoch, created_at
+           FROM recovery_credentials
+          WHERE vault_id = ? AND status = 'ACTIVE'
+          ORDER BY created_at DESC
+          LIMIT 1"
+    );
+    $stmt->bind_param('s', $auth['vault_id']);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    aw_json_response(200, [
+        'recovery' => $row ? [
+            'recoveryId' => $row['recovery_id'],
+            'keyEpoch' => (int)$row['key_epoch'],
+            'createdAt' => $row['created_at'],
+        ] : null,
+    ]);
+}
