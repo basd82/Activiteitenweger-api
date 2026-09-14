@@ -52,7 +52,9 @@ CREATE TABLE `vault_devices` (
   `status` enum('ACTIVE','REVOKED') NOT NULL DEFAULT 'ACTIVE',
   `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
   `revoked_at` datetime(6) DEFAULT NULL,
-  `revoked_by` char(36) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL
+  `revoked_by` char(36) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL,
+  `label_ciphertext` mediumblob,
+  `label_nonce` varbinary(32) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
