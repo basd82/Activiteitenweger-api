@@ -42,6 +42,11 @@ try {
         aw_handle_update_device_label($auth, $rawBody);
     }
 
+    if ($method === 'PUT' && preg_match('#^/api/v1/devices/([0-9a-f-]{36})/label$#i', $path, $m) === 1) {
+        $auth = aw_require_auth($rawBody);
+        aw_handle_update_device_label($auth, $rawBody, strtolower($m[1]));
+    }
+
     if ($method === 'POST' && preg_match('#^/api/v1/devices/([0-9a-f-]{36})/transfer-ownership$#i', $path, $m) === 1) {
         $auth = aw_require_auth($rawBody);
         aw_handle_transfer_ownership($auth, strtolower($m[1]));
